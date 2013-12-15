@@ -12,6 +12,10 @@ import (
 // Create global log instance
 var log *sarama.Producer
 
+func Log(topic string, key string, value string) {
+    log.QueueMessage(topic, sarama.StringEncoder(key), sarama.StringEncoder(value))
+}
+
 func main() {
 
     // Use all cores
@@ -44,20 +48,25 @@ func main() {
     }
 
     // Read in host file
-    var config Config
-    gcfg.ReadFileInto(&config, "hosts.conf")
+    var hosts Config
+    gcfg.ReadFileInto(&hosts, "hosts.conf")
 
     mux := NewMux()
 
     // Create route handlers
-    for host, label := range config.Host {
+    for host, conf := range hosts.Host {
         url, _ := url.Parse(host)
+
+        domain := url.Host
+        label := conf.Label
+
         proxy := httputil.NewSingleHostReverseProxy(url)
-        prefix := "/" + label.Label
-        mux.Handle(prefix, label.Label, proxy)
+        prefix := "/" + label
+
+        mux.Register(label, domain, prefix, proxy)
     }
 
-    err = log.QueueMessage("internal", nil, sarama.StringEncoder("Router started"))
+    Log("internal", "route.start", "Router started")
 
     http.ListenAndServe(":9343", mux)
 }
