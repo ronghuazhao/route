@@ -56,7 +56,7 @@ func main() {
         mux.Handle("/" + label.Label, true, proxy)
     }
 
-    err = log.SendMessage("internal", nil, sarama.StringEncoder("Router started"))
+    err = log.QueueMessage("internal", nil, sarama.StringEncoder("Router started"))
 
     http.ListenAndServe(":9343", mux)
 }

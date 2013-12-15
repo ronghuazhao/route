@@ -109,7 +109,7 @@ func (mux *Mux) Handle(path string, prefix bool, handler http.Handler) {
 
 func (mux *Mux) log(path string) {
     var err error
-    err = log.SendMessage("route", nil, sarama.StringEncoder(path))
+    err = log.QueueMessage("route", sarama.StringEncoder("request.start"), sarama.StringEncoder(path))
     if err != nil {
         panic(err)
     }
