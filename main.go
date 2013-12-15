@@ -53,7 +53,8 @@ func main() {
     for host, label := range config.Host {
         url, _ := url.Parse(host)
         proxy := httputil.NewSingleHostReverseProxy(url)
-        mux.Handle("/" + label.Label, true, proxy)
+        prefix := "/" + label.Label
+        mux.Handle(prefix, label.Label, proxy)
     }
 
     err = log.QueueMessage("internal", nil, sarama.StringEncoder("Router started"))
