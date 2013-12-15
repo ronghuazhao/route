@@ -29,10 +29,10 @@ func NewMux() *Mux {
 }
 
 func (mux *Mux) ServeHTTP(w http.ResponseWriter, r *http.Request) {
-    handler, ok := mux.lookup(r.URL.Path)
-
     // Pass event to central log
-    mux.log(r.URL.Path)
+    mux.log(r.Method + " " + r.URL.Path)
+
+    handler, ok := mux.lookup(r.URL.Path)
 
     if !ok {
         http.NotFound(w, r)
