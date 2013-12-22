@@ -1,4 +1,4 @@
-package main
+package route
 
 import (
 	"net/http"
@@ -6,7 +6,7 @@ import (
 	"sync"
 )
 
-type Mux struct {
+type Router struct {
 	mu    sync.RWMutex
 	hosts map[string]Host
 }
@@ -16,32 +16,32 @@ type Host struct {
 	handler http.Handler
 }
 
-func NewMux() *Mux {
-	return &Mux{hosts: make(map[string]Host)}
+func NewRouter() *Router {
+	return &Router{hosts: make(map[string]Host)}
 }
 
-func (mux *Mux) Register(label string, domain string, prefix string, handler http.Handler) {
+func (router *Router) Register(label string, domain string, prefix string, handler http.Handler) {
 	// Key in a host by its label
-	mux.hosts[label] = Host{domain: domain, handler: handler}
+	router.hosts[label] = Host{domain: domain, handler: handler}
 }
 
-func (mux *Mux) Lookup(path string) (host Host) {
-	mux.mu.RLock()
-	defer mux.mu.RUnlock()
+func (router *Router) Lookup(path string) (host Host) {
+	router.mu.RLock()
+	defer router.mu.RUnlock()
 
 	// Extract the prefix from the given path
 	split := strings.Split(path, "/")
 	prefix := split[1]
 
 	// Find the host from its prefix
-	host = mux.hosts[prefix]
+	host = router.hosts[prefix]
 
 	return host
 }
 
-func (mux *Mux) ServeHTTP(w http.ResponseWriter, r *http.Request) {
+func (router *Router) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 	// Fetch host by the given path
-	host := mux.Lookup(r.URL.Path)
+	host := router.Lookup(r.URL.Path)
 
 	// Build new path removing prefix
 	split := strings.Split(r.URL.Path, "/")

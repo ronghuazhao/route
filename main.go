@@ -1,4 +1,4 @@
-package main
+package route
 
 import (
 	"code.google.com/p/gcfg"
@@ -51,7 +51,7 @@ func main() {
 	var hosts Config
 	gcfg.ReadFileInto(&hosts, "hosts.conf")
 
-	mux := NewMux()
+	router := NewRouter()
 
 	// Create route handlers
 	for host, conf := range hosts.Host {
@@ -63,10 +63,10 @@ func main() {
 		proxy := httputil.NewSingleHostReverseProxy(url)
 		prefix := "/" + label
 
-		mux.Register(label, domain, prefix, proxy)
+		router.Register(label, domain, prefix, proxy)
 	}
 
 	Log("internal", "route.start", "Router started")
 
-	http.ListenAndServe(":9343", mux)
+	http.ListenAndServe(":9343", router)
 }
