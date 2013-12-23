@@ -1,14 +1,18 @@
-package route
+package router
 
 import (
+    "github.umn.edu/umnapi/route.git/logger"
 	"net/http"
 	"strings"
 	"sync"
+	"errors"
+	"fmt"
 )
 
 type Router struct {
 	mu    sync.RWMutex
 	hosts map[string]Host
+	logger *logger.Logger
 }
 
 type Host struct {
@@ -16,8 +20,11 @@ type Host struct {
 	handler http.Handler
 }
 
-func NewRouter() *Router {
-	return &Router{hosts: make(map[string]Host)}
+func NewRouter(logger *logger.Logger) *Router {
+	return &Router{
+        hosts: make(map[string]Host),
+        logger: logger,
+    }
 }
 
 func (router *Router) Register(label string, domain string, prefix string, handler http.Handler) {
@@ -25,23 +32,32 @@ func (router *Router) Register(label string, domain string, prefix string, handl
 	router.hosts[label] = Host{domain: domain, handler: handler}
 }
 
-func (router *Router) Lookup(path string) (host Host) {
+func (router *Router) Lookup(path string) (host Host, err error) {
 	router.mu.RLock()
 	defer router.mu.RUnlock()
 
 	// Extract the prefix from the given path
 	split := strings.Split(path, "/")
-	prefix := split[1]
+	if len(split) >= 2 {
+        prefix := split[1]
+        host = router.hosts[prefix]
+        if host.handler != nil {
+            return host, nil
+        }
+    }
 
-	// Find the host from its prefix
-	host = router.hosts[prefix]
-
-	return host
+    err = errors.New("404 Not Found")
+    return Host{}, err
 }
 
 func (router *Router) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 	// Fetch host by the given path
-	host := router.Lookup(r.URL.Path)
+	host, err := router.Lookup(r.URL.Path)
+	if err != nil {
+        message := fmt.Sprintf("%s %s %s", r.Method, r.URL.String(), err)
+	    router.logger.Log("route", "request.failure", message)
+	    return
+    }
 
 	// Build new path removing prefix
 	split := strings.Split(r.URL.Path, "/")
@@ -54,7 +70,8 @@ func (router *Router) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 	handler := host.handler
 
 	// Send event to central log
-	Log("route", "request.start", r.Method+" "+r.Host+r.URL.String())
+	message := fmt.Sprintf("%s %s%s 200 OK", r.Method, r.Host, r.URL.String())
+	router.logger.Log("route", "request.start", message)
 
 	// Serve request
 	handler.ServeHTTP(w, r)
