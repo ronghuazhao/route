@@ -1,17 +1,17 @@
 package router
 
 import (
-    "github.umn.edu/umnapi/route.git/logger"
+	"errors"
+	"fmt"
+	"github.umn.edu/umnapi/route.git/logger"
 	"net/http"
 	"strings"
 	"sync"
-	"errors"
-	"fmt"
 )
 
 type Router struct {
-	mu    sync.RWMutex
-	hosts map[string]Host
+	mu     sync.RWMutex
+	hosts  map[string]Host
 	logger *logger.Logger
 }
 
@@ -22,9 +22,9 @@ type Host struct {
 
 func NewRouter(logger *logger.Logger) *Router {
 	return &Router{
-        hosts: make(map[string]Host),
-        logger: logger,
-    }
+		hosts:  make(map[string]Host),
+		logger: logger,
+	}
 }
 
 func (router *Router) Register(label string, domain string, prefix string, handler http.Handler) {
@@ -39,25 +39,25 @@ func (router *Router) Lookup(path string) (host Host, err error) {
 	// Extract the prefix from the given path
 	split := strings.Split(path, "/")
 	if len(split) >= 2 {
-        prefix := split[1]
-        host = router.hosts[prefix]
-        if host.handler != nil {
-            return host, nil
-        }
-    }
+		prefix := split[1]
+		host = router.hosts[prefix]
+		if host.handler != nil {
+			return host, nil
+		}
+	}
 
-    err = errors.New("404 Not Found")
-    return Host{}, err
+	err = errors.New("404 Not Found")
+	return Host{}, err
 }
 
 func (router *Router) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 	// Fetch host by the given path
 	host, err := router.Lookup(r.URL.Path)
 	if err != nil {
-        message := fmt.Sprintf("%s %s %s", r.Method, r.URL.String(), err)
-	    router.logger.Log("route", "request.failure", message)
-	    return
-    }
+		message := fmt.Sprintf("%s %s %s", r.Method, r.URL.String(), err)
+		router.logger.Log("route", "request.failure", message)
+		return
+	}
 
 	// Build new path removing prefix
 	split := strings.Split(r.URL.Path, "/")
