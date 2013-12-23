@@ -43,7 +43,7 @@ func main() {
 		router.Register(label, domain, prefix, proxy)
 	}
 
-	logger.Log("internal", "route.start", "router started")
+	logger.Log("internal", "route.start", "router started", "[fg-blue]")
 
 	http.ListenAndServe(":9343", router)
 }

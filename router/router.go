@@ -54,8 +54,8 @@ func (router *Router) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 	// Fetch host by the given path
 	host, err := router.Lookup(r.URL.Path)
 	if err != nil {
-		message := fmt.Sprintf("%s %s %s", r.Method, r.URL.String(), err)
-		router.logger.Log("route", "request.failure", message)
+		message := fmt.Sprintf("%s %s (%s)", r.Method, r.URL.String(), err)
+		router.logger.Log("route", "request.failure", message, "[fg-red]")
 		return
 	}
 
@@ -70,8 +70,8 @@ func (router *Router) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 	handler := host.handler
 
 	// Send event to central log
-	message := fmt.Sprintf("%s %s%s 200 OK", r.Method, r.Host, r.URL.String())
-	router.logger.Log("route", "request.start", message)
+	message := fmt.Sprintf("%s %s%s (200 OK)", r.Method, r.Host, r.URL.String())
+	router.logger.Log("route", "request.start", message, "[fg-green]")
 
 	// Serve request
 	handler.ServeHTTP(w, r)

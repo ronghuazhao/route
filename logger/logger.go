@@ -3,6 +3,7 @@ package logger
 import (
 	"fmt"
 	"github.com/Shopify/sarama"
+	"github.com/foize/go.sgr"
 	"sync"
 	"time"
 )
@@ -30,9 +31,7 @@ func NewLogger(name string, handler int) *Logger {
 		if err != nil {
 			fmt.Println(err)
 			return logger.fallback(logger)
-		} else {
-			// defer client.Close()
-		}
+        }
 
 		producer, err := sarama.NewProducer(client, &sarama.ProducerConfig{
 			RequiredAcks:     sarama.WaitForLocal,
@@ -42,33 +41,40 @@ func NewLogger(name string, handler int) *Logger {
 		if err != nil {
 			return logger.fallback(logger)
 		} else {
-			// defer producer.Close()
-
 			logger.producer = producer
 			logger.handler = Kafka
 		}
 	} else if handler == Console {
-		fmt.Println("> internal: using console output")
 		logger.handler = Console
+        logger.Log("internal", "router.status", "using console output", "[fg-blue]")
 	}
 
 	return logger
 }
 
 func (logger *Logger) fallback(instance *Logger) *Logger {
-	fmt.Println("> internal: central log unavailable")
-	fmt.Println("> internal: using console output")
 	instance.handler = Console
+	instance.Log("internal", "router.status", "central log unavailable", "[fg-blue]")
+	instance.Log("internal", "router.status", "using console output", "[fg-blue]")
 	return instance
 }
 
-func (logger *Logger) Log(topic string, key string, value string) {
+func (logger *Logger) Log(topic string, key string, value string, formatting interface{}) {
 	logger.mu.RLock()
 	defer logger.mu.RUnlock()
 
 	if logger.handler == Kafka {
 		logger.producer.QueueMessage(topic, sarama.StringEncoder(key), sarama.StringEncoder(value))
 	} else if logger.handler == Console {
-		fmt.Printf("> %s: %s\n", topic, value)
+	    var message string
+
+	    if formatting != nil {
+            message = fmt.Sprintf("%s> %s: %s", formatting, topic, value)
+        } else {
+            message = fmt.Sprintf("> %s: %s", topic, value)
+        }
+
+        message = sgr.MustParseln(message)
+		fmt.Print(message)
 	}
 }
