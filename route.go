@@ -45,5 +45,5 @@ func main() {
 
 	logger.Log("internal", "route.start", "router started", "[fg-blue]")
 
-	http.ListenAndServe(":9343", router)
+	http.ListenAndServe(":6000", router)
 }
