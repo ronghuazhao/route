@@ -20,5 +20,24 @@ func NewApi(prefix string, rt *router.Router, logger *logger.Logger) http.Handle
 
     api.HandleFunc("/routes", RoutesHandler)
 
+    RouteHandler := func(w http.ResponseWriter, r *http.Request) {
+        vars := mux.Vars(r)
+        label := vars["route"]
+
+        route := rt.Hosts[label]
+        blank := &router.Host{}
+
+        if route != *blank {
+            response := NewJsonResponse(w)
+            response.Write(Json{"objects": route})
+        } else {
+            w.WriteHeader(http.StatusNotFound)
+        }
+
+        return
+    }
+
+    api.HandleFunc("/routes/{route}", RouteHandler)
+
     return api
 }

@@ -42,8 +42,9 @@ func main() {
 
 		proxy := httputil.NewSingleHostReverseProxy(url)
 		prefix := "/" + label
+		path := url.String()
 
-		router.Register(label, domain, prefix, proxy)
+		router.Register(label, domain, path, prefix, proxy)
 	}
 
 	go http.ListenAndServe(":8080", router)

@@ -10,13 +10,16 @@ import (
 )
 
 type Router struct {
-	mu     sync.RWMutex
-	Hosts  map[string]Host
-	logger *logger.Logger
+	mu      sync.RWMutex
+	Hosts   map[string]Host
+	logger  *logger.Logger
 }
 
 type Host struct {
 	Domain  string          `json:"domain"`
+	Label   string          `json:"label"`
+	Path    string          `json:"path"`
+	Prefix  string          `json:"prefix"`
 	handler http.Handler
 }
 
@@ -27,9 +30,15 @@ func NewRouter(logger *logger.Logger) *Router {
 	}
 }
 
-func (router *Router) Register(label string, domain string, prefix string, handler http.Handler) {
+func (router *Router) Register(label string, domain string, path string, prefix string, handler http.Handler) {
 	// Key in a host by its label
-	router.Hosts[label] = Host{Domain: domain, handler: handler}
+	router.Hosts[label] = Host{
+        Domain: domain,
+        Label: label,
+        Path: path,
+        Prefix: prefix,
+        handler: handler,
+    }
 }
 
 func (router *Router) Lookup(path string) (host Host, err error) {
