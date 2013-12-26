@@ -45,5 +45,7 @@ func main() {
 
 	logger.Log("internal", "route.start", "router started", "[fg-blue]")
 
-	http.ListenAndServe(":6000", router)
+	go http.ListenAndServe(":8080", router)
+	
+	<- make(chan int)
 }
