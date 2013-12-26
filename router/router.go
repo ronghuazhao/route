@@ -16,7 +16,7 @@ type Router struct {
 }
 
 type Host struct {
-	domain  string
+	Domain  string          `json:"domain"`
 	handler http.Handler
 }
 
@@ -29,7 +29,7 @@ func NewRouter(logger *logger.Logger) *Router {
 
 func (router *Router) Register(label string, domain string, prefix string, handler http.Handler) {
 	// Key in a host by its label
-	router.Hosts[label] = Host{domain: domain, handler: handler}
+	router.Hosts[label] = Host{Domain: domain, handler: handler}
 }
 
 func (router *Router) Lookup(path string) (host Host, err error) {
@@ -64,7 +64,7 @@ func (router *Router) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 	r.URL.Path = "/" + strings.Join(split[2:], "/")
 
 	// Assign target host header
-	r.Host = host.domain
+	r.Host = host.Domain
 
 	// Assign handler
 	handler := host.handler
