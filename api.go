@@ -12,13 +12,8 @@ func NewApi(prefix string, rt *router.Router, logger *logger.Logger) http.Handle
     api := internal.PathPrefix(prefix).Methods("GET").Subrouter()
 
     RoutesHandler := func(w http.ResponseWriter, r *http.Request) {
-        hosts := make([]string, 0)
-        for host := range rt.Hosts {
-            hosts = append(hosts, host)
-        }
-
         response := NewJsonResponse(w)
-        response.Write(Json{"objects": hosts})
+        response.Write(Json{"objects": rt.Hosts})
 
         return
     }
