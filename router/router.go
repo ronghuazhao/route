@@ -11,7 +11,7 @@ import (
 
 type Router struct {
 	mu     sync.RWMutex
-	hosts  map[string]Host
+	Hosts  map[string]Host
 	logger *logger.Logger
 }
 
@@ -22,14 +22,14 @@ type Host struct {
 
 func NewRouter(logger *logger.Logger) *Router {
 	return &Router{
-		hosts:  make(map[string]Host),
+		Hosts:  make(map[string]Host),
 		logger: logger,
 	}
 }
 
 func (router *Router) Register(label string, domain string, prefix string, handler http.Handler) {
 	// Key in a host by its label
-	router.hosts[label] = Host{domain: domain, handler: handler}
+	router.Hosts[label] = Host{domain: domain, handler: handler}
 }
 
 func (router *Router) Lookup(path string) (host Host, err error) {
@@ -40,7 +40,7 @@ func (router *Router) Lookup(path string) (host Host, err error) {
 	split := strings.Split(path, "/")
 	if len(split) >= 2 {
 		prefix := split[1]
-		host = router.hosts[prefix]
+		host = router.Hosts[prefix]
 		if host.handler != nil {
 			return host, nil
 		}
