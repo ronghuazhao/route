@@ -5,20 +5,34 @@ import (
         "github.umn.edu/umnapi/route.git/router"
         "github.com/gorilla/mux"
         "net/http"
+        "net/url"
+        "net/http/httputil"
 )
 
 func NewApi(prefix string, rt *router.Router, logger *logger.Logger) http.Handler {
     internal := mux.NewRouter()
-    api := internal.PathPrefix(prefix).Methods("GET").Subrouter()
+    api := internal.PathPrefix(prefix).Subrouter()
 
     RoutesHandler := func(w http.ResponseWriter, r *http.Request) {
+        if r.Method == "POST" {
+            err := r.ParseMultipartForm(16 * 1024 * 1024)
+            if err != nil {
+                w.WriteHeader(http.StatusInternalServerError)
+            }
+
+            v := r.PostForm
+
+            url, _ := url.Parse(v.Get("path"))
+            proxy := httputil.NewSingleHostReverseProxy(url)
+
+            rt.Register(v.Get("label"), v.Get("domain"), v.Get("path"), v.Get("prefix"), proxy)
+        }
+
         response := NewJsonResponse(w)
         response.Write(Json{"objects": rt.Hosts})
 
         return
     }
-
-    api.HandleFunc("/routes", RoutesHandler)
 
     RouteHandler := func(w http.ResponseWriter, r *http.Request) {
         vars := mux.Vars(r)
@@ -37,7 +51,8 @@ func NewApi(prefix string, rt *router.Router, logger *logger.Logger) http.Handle
         return
     }
 
-    api.HandleFunc("/routes/{route}", RouteHandler)
+    api.HandleFunc("/routes", RoutesHandler).Methods("GET", "POST")
+    api.HandleFunc("/routes/{route}", RouteHandler).Methods("GET")
 
     return api
 }
