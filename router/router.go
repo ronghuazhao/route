@@ -7,6 +7,10 @@ import (
 	"net/http"
 	"strings"
 	"sync"
+	"io/ioutil"
+	"crypto/hmac"
+	"crypto/sha256"
+	"encoding/pem"
 )
 
 type Router struct {
@@ -29,6 +33,21 @@ func NewRouter(logger *logger.Logger) *Router {
 		logger: logger,
 	}
 }
+
+func (router *Router) Verify(other string, user string, time string, path string, method string) bool {
+    keyfile, _ := ioutil.ReadFile("key")
+    key, _ := pem.Decode(keyfile)
+
+    mac := hmac.New(sha256.New, key.Bytes)
+    signature := user + time + path + method
+    mac.Write([]byte(signature))
+    sum := mac.Sum(nil)
+
+    local := fmt.Sprintf("%x", []byte(sum))
+
+    return hmac.Equal([]byte(local), []byte(other))
+}
+
 
 func (router *Router) Register(label string, domain string, path string, prefix string, handler http.Handler) {
 	// Key in a host by its label
@@ -60,6 +79,20 @@ func (router *Router) Lookup(path string) (host Host, err error) {
 }
 
 func (router *Router) ServeHTTP(w http.ResponseWriter, r *http.Request) {
+    // Verify request signature
+    r.ParseForm()
+    f := r.Form
+
+    valid := router.Verify(f.Get("digest"), f.Get("key"), f.Get("now"), r.URL.Path, r.Method)
+    if valid != true {
+        message := "401 Unauthorized"
+		router.logger.Log("auth", "request.failure", message, "[fg-red]")
+		return
+    } else {
+        message := fmt.Sprintf("Authorized user %s", f.Get("key"))
+		router.logger.Log("auth", "request.success", message, "[fg-green]")
+    }
+
 	// Fetch host by the given path
 	host, err := router.Lookup(r.URL.Path)
 	if err != nil {
