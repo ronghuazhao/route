@@ -1,58 +1,58 @@
 package main
 
 import (
-        "github.umn.edu/umnapi/route.git/logger"
-        "github.umn.edu/umnapi/route.git/router"
-        "github.com/gorilla/mux"
-        "net/http"
-        "net/url"
-        "net/http/httputil"
+	"github.com/gorilla/mux"
+	"github.umn.edu/umnapi/route.git/logger"
+	"github.umn.edu/umnapi/route.git/router"
+	"net/http"
+	"net/http/httputil"
+	"net/url"
 )
 
 func NewApi(prefix string, rt *router.Router, logger *logger.Logger) http.Handler {
-    internal := mux.NewRouter()
-    api := internal.PathPrefix(prefix).Subrouter()
+	internal := mux.NewRouter()
+	api := internal.PathPrefix(prefix).Subrouter()
 
-    RoutesHandler := func(w http.ResponseWriter, r *http.Request) {
-        if r.Method == "POST" {
-            err := r.ParseMultipartForm(16 * 1024 * 1024)
-            if err != nil {
-                w.WriteHeader(http.StatusInternalServerError)
-            }
+	RoutesHandler := func(w http.ResponseWriter, r *http.Request) {
+		if r.Method == "POST" {
+			err := r.ParseMultipartForm(16 * 1024 * 1024)
+			if err != nil {
+				w.WriteHeader(http.StatusInternalServerError)
+			}
 
-            v := r.PostForm
+			v := r.PostForm
 
-            url, _ := url.Parse(v.Get("path"))
-            proxy := httputil.NewSingleHostReverseProxy(url)
+			url, _ := url.Parse(v.Get("path"))
+			proxy := httputil.NewSingleHostReverseProxy(url)
 
-            rt.Register(v.Get("label"), v.Get("domain"), v.Get("path"), v.Get("prefix"), proxy)
-        }
+			rt.Register(v.Get("label"), v.Get("domain"), v.Get("path"), v.Get("prefix"), proxy)
+		}
 
-        response := NewJsonResponse(w)
-        response.Write(Json{"objects": rt.Hosts})
+		response := NewJsonResponse(w)
+		response.Write(Json{"objects": rt.Hosts})
 
-        return
-    }
+		return
+	}
 
-    RouteHandler := func(w http.ResponseWriter, r *http.Request) {
-        vars := mux.Vars(r)
-        label := vars["route"]
+	RouteHandler := func(w http.ResponseWriter, r *http.Request) {
+		vars := mux.Vars(r)
+		label := vars["route"]
 
-        route := rt.Hosts[label]
-        blank := &router.Host{}
+		route := rt.Hosts[label]
+		blank := &router.Host{}
 
-        if route != *blank {
-            response := NewJsonResponse(w)
-            response.Write(Json{"objects": route})
-        } else {
-            w.WriteHeader(http.StatusNotFound)
-        }
+		if route != *blank {
+			response := NewJsonResponse(w)
+			response.Write(Json{"objects": route})
+		} else {
+			w.WriteHeader(http.StatusNotFound)
+		}
 
-        return
-    }
+		return
+	}
 
-    api.HandleFunc("/routes", RoutesHandler).Methods("GET", "POST")
-    api.HandleFunc("/routes/{route}", RouteHandler).Methods("GET")
+	api.HandleFunc("/routes", RoutesHandler).Methods("GET", "POST")
+	api.HandleFunc("/routes/{route}", RouteHandler).Methods("GET")
 
-    return api
+	return api
 }

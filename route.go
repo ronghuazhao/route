@@ -27,7 +27,7 @@ func main() {
 	router := router.NewRouter(logger)
 
 	// Create API handler
-    api := NewApi("/api/v1", router, logger)
+	api := NewApi("/api/v1", router, logger)
 
 	// Read in host file
 	var hosts Config
@@ -50,8 +50,8 @@ func main() {
 	go http.ListenAndServe(":8080", router)
 	logger.Log("internal", "route.start", "router started", "[fg-blue]")
 
-    go http.ListenAndServe(":8081", api)
+	go http.ListenAndServe(":8081", api)
 	logger.Log("internal", "route.start", "api started", "[fg-blue]")
 
-    <- make(chan int)
+	<-make(chan int)
 }
