@@ -4,6 +4,7 @@ import (
 	"github.com/gorilla/mux"
 	"github.umn.edu/umnapi/route.git/logger"
 	"github.umn.edu/umnapi/route.git/router"
+	"github.umn.edu/umnapi/route.git/json"
 	"net/http"
 	"net/http/httputil"
 	"net/url"
@@ -28,8 +29,8 @@ func NewApi(prefix string, rt *router.Router, logger *logger.Logger) http.Handle
 			rt.Register(v.Get("label"), v.Get("domain"), v.Get("path"), v.Get("prefix"), proxy)
 		}
 
-		response := NewJsonResponse(w)
-		response.Write(Json{"objects": rt.Hosts})
+		response := json.NewJsonResponse(w)
+		response.Write(json.Json{"objects": rt.Hosts})
 
 		return
 	}
@@ -42,8 +43,8 @@ func NewApi(prefix string, rt *router.Router, logger *logger.Logger) http.Handle
 		blank := &router.Host{}
 
 		if route != *blank {
-			response := NewJsonResponse(w)
-			response.Write(Json{"objects": route})
+			response := json.NewJsonResponse(w)
+			response.Write(json.Json{"objects": route})
 		} else {
 			w.WriteHeader(http.StatusNotFound)
 		}
