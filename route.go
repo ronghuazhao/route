@@ -23,7 +23,7 @@ func main() {
 	runtime.GOMAXPROCS(runtime.NumCPU())
 
 	// Bootstrap modules
-	logger := logger.NewLogger("route", logger.Kafka)
+	logger := logger.NewLogger("route", logger.Console)
 	router := router.NewRouter(logger)
 
 	// Create API handler
