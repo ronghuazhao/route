@@ -4,12 +4,14 @@ import (
 	"errors"
 	"net/http"
 	"strings"
+	"database/sql"
 	"sync"
 )
 
 type Router struct {
 	mu      sync.RWMutex
 	Hosts   map[string]Host
+	Store   *sql.DB
 }
 
 type Host struct {
@@ -20,9 +22,10 @@ type Host struct {
 	handler http.Handler
 }
 
-func NewRouter() *Router {
+func NewRouter(db *sql.DB) *Router {
 	return &Router{
 		Hosts:  make(map[string]Host),
+		Store: db,
 	}
 }
 
@@ -60,9 +63,19 @@ func (router *Router) ServeHTTP(w http.ResponseWriter, r *http.Request) {
     r.ParseForm()
     f := r.Form
 
-    // authorization := router
+    // Get request variables
+    digest := f.Get("digest")
+    public_key := f.Get("key")
+    now := f.Get("now")
+    path := r.URL.Path
+    method := r.Method
 
-    valid := Authenticate(f.Get("digest"), f.Get("key"), f.Get("now"), r.URL.Path, r.Method)
+    // Get private key
+    var private_key string
+    router.Store.QueryRow("SELECT private_key FROM keystore WHERE public_key=?", f.Get("key")).Scan(&private_key)
+
+    valid := Authenticate(digest, public_key, private_key, now, path, method)
+    // authorized := Authorize()
     if valid != true {
         w.WriteHeader(http.StatusUnauthorized)
 		return

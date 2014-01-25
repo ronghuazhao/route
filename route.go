@@ -4,6 +4,8 @@ import (
 	"code.google.com/p/gcfg"
 	"github.umn.edu/umnapi/route.git/logger"
 	"github.umn.edu/umnapi/route.git/router"
+	_ "github.com/mattn/go-sqlite3"
+	"database/sql"
 	"net/http"
 	"net/http/httputil"
 	"net/url"
@@ -19,11 +21,13 @@ type Config struct {
 
 var logging *logger.Logger
 var routing *router.Router
+var database *sql.DB
 
 func init() {
     // Initiate logger
+	database, _ = sql.Open("sqlite3", "/Users/ben/Code/api-auth/db/development.sqlite3")
     logging = logger.NewLogger("route", logger.Console)
-	routing = router.NewRouter()
+	routing = router.NewRouter(database)
 }
 
 func main() {
@@ -54,9 +58,11 @@ func main() {
 		routing.Register(label, domain, path, prefix, proxy)
 	}
 
+    // Start router
 	go http.ListenAndServe(":8080", routing)
 	logging.Log("internal", "route.start", "router started", "[fg-blue]")
 
+    // Start router API
 	go http.ListenAndServe(":8081", api)
 	logging.Log("internal", "route.start", "api started", "[fg-blue]")
 
