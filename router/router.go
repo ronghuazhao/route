@@ -16,7 +16,6 @@ import (
 type Router struct {
 	mu      sync.RWMutex
 	Hosts   map[string]Host
-	logger  *logger.Logger
 }
 
 type Host struct {
@@ -85,21 +84,18 @@ func (router *Router) ServeHTTP(w http.ResponseWriter, r *http.Request) {
     r.ParseForm()
     f := r.Form
 
-    valid := router.Verify(f.Get("digest"), f.Get("key"), f.Get("now"), r.URL.Path, r.Method)
+    // authorization := router
+
+    valid := Authenticate(f.Get("digest"), f.Get("key"), f.Get("now"), r.URL.Path, r.Method)
     if valid != true {
-        message := "401 Unauthorized"
-		router.logger.Log("auth", "request.failure", message, "[fg-red]")
+        w.WriteHeader(http.StatusUnauthorized)
 		return
-    } else {
-        message := fmt.Sprintf("Authorized user %s", f.Get("key"))
-		router.logger.Log("auth", "request.success", message, "[fg-green]")
     }
 
 	// Fetch host by the given path
 	host, err := router.Lookup(r.URL.Path)
 	if err != nil {
-		message := fmt.Sprintf("%s %s (%s)", r.Method, r.URL.String(), err)
-		router.logger.Log("route", "request.failure", message, "[fg-red]")
+	    http.NotFound(w, r)
 		return
 	}
 
@@ -112,10 +108,6 @@ func (router *Router) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 
 	// Assign handler
 	handler := host.handler
-
-	// Send event to central log
-	message := fmt.Sprintf("%s %s%s (200 OK)", r.Method, r.Host, r.URL.String())
-	router.logger.Log("route", "request.start", message, "[fg-green]")
 
 	// Serve request
 	handler.ServeHTTP(w, r)

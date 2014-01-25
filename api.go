@@ -2,7 +2,6 @@ package main
 
 import (
 	"github.com/gorilla/mux"
-	"github.umn.edu/umnapi/route.git/logger"
 	"github.umn.edu/umnapi/route.git/router"
 	"github.umn.edu/umnapi/route.git/json"
 	"net/http"
@@ -10,7 +9,7 @@ import (
 	"net/url"
 )
 
-func NewApi(prefix string, rt *router.Router, logger *logger.Logger) http.Handler {
+func NewApi(prefix string, rt *router.Router) http.Handler {
 	internal := mux.NewRouter()
 	api := internal.PathPrefix(prefix).Subrouter()
 

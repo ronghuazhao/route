@@ -17,17 +17,24 @@ type Config struct {
 	}
 }
 
+var logging *logger.Logger
+var routing *router.Router
+
+func init() {
+    // Initiate logger
+    logging = logger.NewLogger("route", logger.Console)
+	routing = router.NewRouter()
+}
+
 func main() {
 
 	// Use all cores
 	runtime.GOMAXPROCS(runtime.NumCPU())
 
 	// Bootstrap modules
-	logger := logger.NewLogger("route", logger.Console)
-	router := router.NewRouter(logger)
 
 	// Create API handler
-	api := NewApi("/api/v1", router, logger)
+	api := NewApi("/api/v1", routing)
 
 	// Read in host file
 	var hosts Config
@@ -44,14 +51,14 @@ func main() {
 		prefix := "/" + label
 		path := url.String()
 
-		router.Register(label, domain, path, prefix, proxy)
+		routing.Register(label, domain, path, prefix, proxy)
 	}
 
-	go http.ListenAndServe(":8080", router)
-	logger.Log("internal", "route.start", "router started", "[fg-blue]")
+	go http.ListenAndServe(":8080", routing)
+	logging.Log("internal", "route.start", "router started", "[fg-blue]")
 
 	go http.ListenAndServe(":8081", api)
-	logger.Log("internal", "route.start", "api started", "[fg-blue]")
+	logging.Log("internal", "route.start", "api started", "[fg-blue]")
 
 	<-make(chan int)
 }
