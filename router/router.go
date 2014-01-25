@@ -3,14 +3,14 @@ package router
 import (
 	"errors"
 	"fmt"
+	"database/sql"
 	"github.umn.edu/umnapi/route.git/logger"
+	_ "github.com/mattn/go-sqlite3"
 	"net/http"
 	"strings"
 	"sync"
-	"io/ioutil"
 	"crypto/hmac"
 	"crypto/sha256"
-	"encoding/pem"
 )
 
 type Router struct {
@@ -35,10 +35,15 @@ func NewRouter(logger *logger.Logger) *Router {
 }
 
 func (router *Router) Verify(other string, user string, time string, path string, method string) bool {
-    keyfile, _ := ioutil.ReadFile("key")
-    key, _ := pem.Decode(keyfile)
+    db, _ := sql.Open("sqlite3", "/Users/ben/Code/api-auth/db/development.sqlite3")
 
-    mac := hmac.New(sha256.New, key.Bytes)
+    var key string
+    rows, _ := db.Query("SELECT private_key FROM keystore WHERE public_key=?", user)
+    for rows.Next() {
+        rows.Scan(&key)
+    }
+
+    mac := hmac.New(sha256.New, []byte(key))
     signature := user + time + path + method
     mac.Write([]byte(signature))
     sum := mac.Sum(nil)
