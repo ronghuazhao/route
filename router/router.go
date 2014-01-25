@@ -35,13 +35,10 @@ func NewRouter(logger *logger.Logger) *Router {
 }
 
 func (router *Router) Verify(other string, user string, time string, path string, method string) bool {
-    db, _ := sql.Open("sqlite3", "/Users/ben/Code/api-auth/db/development.sqlite3")
-
     var key string
-    rows, _ := db.Query("SELECT private_key FROM keystore WHERE public_key=?", user)
-    for rows.Next() {
-        rows.Scan(&key)
-    }
+
+    db, _ := sql.Open("sqlite3", "/Users/ben/Code/api-auth/db/development.sqlite3")
+    db.QueryRow("SELECT private_key FROM keystore WHERE public_key=?", user).Scan(&key)
 
     mac := hmac.New(sha256.New, []byte(key))
     signature := user + time + path + method
