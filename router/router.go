@@ -2,15 +2,9 @@ package router
 
 import (
 	"errors"
-	"fmt"
-	"database/sql"
-	"github.umn.edu/umnapi/route.git/logger"
-	_ "github.com/mattn/go-sqlite3"
 	"net/http"
 	"strings"
 	"sync"
-	"crypto/hmac"
-	"crypto/sha256"
 )
 
 type Router struct {
@@ -26,29 +20,11 @@ type Host struct {
 	handler http.Handler
 }
 
-func NewRouter(logger *logger.Logger) *Router {
+func NewRouter() *Router {
 	return &Router{
 		Hosts:  make(map[string]Host),
-		logger: logger,
 	}
 }
-
-func (router *Router) Verify(other string, user string, time string, path string, method string) bool {
-    var key string
-
-    db, _ := sql.Open("sqlite3", "/Users/ben/Code/api-auth/db/development.sqlite3")
-    db.QueryRow("SELECT private_key FROM keystore WHERE public_key=?", user).Scan(&key)
-
-    mac := hmac.New(sha256.New, []byte(key))
-    signature := user + time + path + method
-    mac.Write([]byte(signature))
-    sum := mac.Sum(nil)
-
-    local := fmt.Sprintf("%x", []byte(sum))
-
-    return hmac.Equal([]byte(local), []byte(other))
-}
-
 
 func (router *Router) Register(label string, domain string, path string, prefix string, handler http.Handler) {
 	// Key in a host by its label
