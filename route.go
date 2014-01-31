@@ -1,14 +1,12 @@
 package main
 
 import (
-	"code.google.com/p/gcfg"
 	"github.umn.edu/umnapi/route.git/logger"
 	"github.umn.edu/umnapi/route.git/router"
 	_ "github.com/mattn/go-sqlite3"
 	"database/sql"
+	"github.com/jmoiron/sqlx"
 	"net/http"
-	"net/http/httputil"
-	"net/url"
 	"runtime"
 )
 
@@ -22,12 +20,14 @@ type Config struct {
 var logging *logger.Logger
 var routing *router.Router
 var database *sql.DB
+var route_store *sqlx.DB
 
 func init() {
     // Initiate logger
 	database, _ = sql.Open("sqlite3", "/Users/ben/Code/api-auth/db/development.sqlite3")
+	route_store, _ = sqlx.Connect("sqlite3", "/Users/ben/Code/api-manage/db/development.sqlite3")
     logging = logger.NewLogger("route", logger.Console)
-	routing = router.NewRouter(database)
+	routing = router.NewRouter(database, route_store)
 }
 
 func main() {
@@ -35,28 +35,8 @@ func main() {
 	// Use all cores
 	runtime.GOMAXPROCS(runtime.NumCPU())
 
-	// Bootstrap modules
-
 	// Create API handler
 	api := NewApi("/api/v1", routing)
-
-	// Read in host file
-	var hosts Config
-	gcfg.ReadFileInto(&hosts, "hosts.conf")
-
-	// Create route handlers
-	for host, conf := range hosts.Host {
-		url, _ := url.Parse(host)
-
-		domain := url.Host
-		label := conf.Label
-
-		proxy := httputil.NewSingleHostReverseProxy(url)
-		prefix := "/" + label
-		path := url.String()
-
-		routing.Register(label, domain, path, prefix, proxy)
-	}
 
     // Start router
 	go http.ListenAndServe(":8080", routing)

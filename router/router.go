@@ -5,13 +5,23 @@ import (
 	"net/http"
 	"strings"
 	"database/sql"
+	"github.com/jmoiron/sqlx"
 	"sync"
+	"net/url"
+	"net/http/httputil"
 )
+
+type Route struct {
+    Name string
+    Description string
+    Endpoint string
+}
 
 type Router struct {
 	mu      sync.RWMutex
 	Hosts   map[string]Host
-	Store   *sql.DB
+	Keystore *sql.DB
+	Store   *sqlx.DB
 }
 
 type Host struct {
@@ -22,10 +32,11 @@ type Host struct {
 	handler http.Handler
 }
 
-func NewRouter(db *sql.DB) *Router {
+func NewRouter(db *sql.DB, route_db *sqlx.DB) *Router {
 	return &Router{
 		Hosts:  make(map[string]Host),
-		Store: db,
+		Keystore: db,
+        Store: route_db,
 	}
 }
 
@@ -48,10 +59,25 @@ func (router *Router) Lookup(path string) (host Host, err error) {
 	split := strings.Split(path, "/")
 	if len(split) >= 2 {
 		prefix := split[1]
-		host = router.Hosts[prefix]
-		if host.handler != nil {
-			return host, nil
-		}
+
+        // Load routes from database
+        route := Route{}
+        router.Store.Get(&route, "SELECT endpoint FROM services WHERE name=$1", prefix)
+
+        // Create route handler
+        url, _ := url.Parse(route.Endpoint)
+
+        domain := url.Host
+        label := prefix
+
+        proxy := httputil.NewSingleHostReverseProxy(url)
+        routeprefix := "/" + label
+        path := url.String()
+
+        router.Register(label, domain, path, routeprefix, proxy)
+
+        host = router.Hosts[prefix]
+        return host, nil
 	}
 
 	err = errors.New("404 Not Found")
@@ -72,7 +98,7 @@ func (router *Router) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 
     // Get private key
     var private_key string
-    router.Store.QueryRow("SELECT private_key FROM keystore WHERE public_key=?", f.Get("key")).Scan(&private_key)
+    router.Keystore.QueryRow("SELECT private_key FROM keystore WHERE public_key=?", f.Get("key")).Scan(&private_key)
 
     valid := Authenticate(digest, public_key, private_key, now, path, method)
     // authorized := Authorize()
