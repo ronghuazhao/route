@@ -2,9 +2,9 @@ package router
 
 import (
 	"errors"
+	"fmt"
 	"net/http"
 	"strings"
-	"database/sql"
 	"github.com/jmoiron/sqlx"
 	"sync"
 	"net/url"
@@ -18,10 +18,10 @@ type Route struct {
 }
 
 type Router struct {
-	mu      sync.RWMutex
-	Hosts   map[string]Host
-	Keystore *sql.DB
-	Store   *sqlx.DB
+	mu          sync.RWMutex
+	Hosts       map[string]Host
+	keyStore    *sqlx.DB
+	routeStore  *sqlx.DB
 }
 
 type Host struct {
@@ -32,11 +32,11 @@ type Host struct {
 	handler http.Handler
 }
 
-func NewRouter(db *sql.DB, route_db *sqlx.DB) *Router {
+func NewRouter(keyStore *sqlx.DB, routeStore *sqlx.DB) *Router {
 	return &Router{
 		Hosts:  make(map[string]Host),
-		Keystore: db,
-        Store: route_db,
+		keyStore: keyStore,
+        routeStore: routeStore,
 	}
 }
 
@@ -62,7 +62,7 @@ func (router *Router) Lookup(path string) (host Host, err error) {
 
         // Load routes from database
         route := Route{}
-        router.Store.Get(&route, "SELECT endpoint FROM services WHERE name=$1", prefix)
+        router.routeStore.Get(&route, "SELECT endpoint FROM services WHERE name=$1", prefix)
 
         // Create route handler
         url, _ := url.Parse(route.Endpoint)
@@ -98,7 +98,8 @@ func (router *Router) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 
     // Get private key
     var private_key string
-    router.Keystore.QueryRow("SELECT private_key FROM keystore WHERE public_key=?", f.Get("key")).Scan(&private_key)
+    router.keyStore.QueryRow("SELECT private_key FROM keystore WHERE public_key=?", f.Get("key")).Scan(&private_key)
+    fmt.Println(private_key)
 
     valid := Authenticate(digest, public_key, private_key, now, path, method)
     // authorized := Authorize()

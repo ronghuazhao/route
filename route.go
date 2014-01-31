@@ -4,7 +4,6 @@ import (
 	"github.umn.edu/umnapi/route.git/logger"
 	"github.umn.edu/umnapi/route.git/router"
 	_ "github.com/mattn/go-sqlite3"
-	"database/sql"
 	"github.com/jmoiron/sqlx"
 	"net/http"
 	"runtime"
@@ -19,15 +18,15 @@ type Config struct {
 
 var logging *logger.Logger
 var routing *router.Router
-var database *sql.DB
-var route_store *sqlx.DB
+var keyStore *sqlx.DB
+var routeStore *sqlx.DB
 
 func init() {
     // Initiate logger
-	database, _ = sql.Open("sqlite3", "/Users/ben/Code/api-auth/db/development.sqlite3")
-	route_store, _ = sqlx.Connect("sqlite3", "/Users/ben/Code/api-manage/db/development.sqlite3")
+	keyStore, _ = sqlx.Connect("sqlite3", "/Users/ben/Code/api-auth/db/development.sqlite3")
+	routeStore, _ = sqlx.Connect("sqlite3", "/Users/ben/Code/api-manage/db/development.sqlite3")
     logging = logger.NewLogger("route", logger.Console)
-	routing = router.NewRouter(database, route_store)
+	routing = router.NewRouter(keyStore, routeStore)
 }
 
 func main() {
