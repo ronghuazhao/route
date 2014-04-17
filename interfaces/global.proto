@@ -1,0 +1,5 @@
+package interfaces;
+enum DO {
+    UPDATE = 0;
+    DELETE = 1;
+}
