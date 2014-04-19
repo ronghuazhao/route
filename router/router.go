@@ -136,7 +136,7 @@ func (router *Router) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 
     // Get private key
     var private_key string
-    redis_key := fmt.Sprintf("keys:%s", public_key)
+    redis_key := fmt.Sprintf("key:%s", public_key)
     store := router.store
     private_key, _ = redis.String(store.Do("get", redis_key))
     /*  router.keyStore.QueryRow("SELECT private_key FROM keystore WHERE public_key=?", f.Get("key")).Scan(&private_key) */
