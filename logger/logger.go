@@ -31,7 +31,7 @@ func NewLogger(name string, handler int) *Logger {
 		if err != nil {
 			fmt.Println(err)
 			return logger.fallback(logger)
-        }
+		}
 
 		producer, err := sarama.NewProducer(client, &sarama.ProducerConfig{
 			RequiredAcks:     sarama.WaitForLocal,
@@ -46,7 +46,7 @@ func NewLogger(name string, handler int) *Logger {
 		}
 	} else if handler == Console {
 		logger.handler = Console
-        logger.Log("internal", "router.status", "using console output", "[fg-blue]")
+		logger.Log("internal", "router.status", "using console output", "[fg-blue]")
 	}
 
 	return logger
@@ -66,15 +66,15 @@ func (logger *Logger) Log(topic string, key string, value string, formatting int
 	if logger.handler == Kafka {
 		logger.producer.QueueMessage(topic, sarama.StringEncoder(key), sarama.StringEncoder(value))
 	} else if logger.handler == Console {
-	    var message string
+		var message string
 
-	    if formatting != nil {
-            message = fmt.Sprintf("%s> %s: %s", formatting, topic, value)
-        } else {
-            message = fmt.Sprintf("> %s: %s", topic, value)
-        }
+		if formatting != nil {
+			message = fmt.Sprintf("%s> %s: %s", formatting, topic, value)
+		} else {
+			message = fmt.Sprintf("> %s: %s", topic, value)
+		}
 
-        message = sgr.MustParseln(message)
+		message = sgr.MustParseln(message)
 		fmt.Print(message)
 	}
 }

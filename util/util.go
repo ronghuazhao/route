@@ -1,15 +1,15 @@
 package util
 
 import (
-    "os"
+	"os"
 )
 
 func GetenvDefault(key, fallback string) (value string) {
-    value = os.Getenv(key)
+	value = os.Getenv(key)
 
-    if value == "" {
-        value = fallback
-    }
+	if value == "" {
+		value = fallback
+	}
 
-    return value
+	return value
 }
