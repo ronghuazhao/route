@@ -95,6 +95,8 @@ func eventListener(store redis.Conn) {
 		return
 	}
 
+	defer context.Close()
+
 	s, err := context.NewSocket(zmq.SUB)
 	if err != nil {
 		logging.Log("internal", "route.error", "failed to create ZMQ socket", "[fg-red]")
