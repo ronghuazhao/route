@@ -139,7 +139,7 @@ func eventListener(store redis.Conn) {
 			cache_key := fmt.Sprintf("key:%s", public_key)
 			cache.Do("set", cache_key, private_key)
 
-			logging.Log("internal", "route.event", fmt.Sprintf("key %s added to cache", data), "[fg-green]")
+			logging.Log("internal", "route.event", "key added to cache", "[fg-green]")
 		}
 	}
 }
