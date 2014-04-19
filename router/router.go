@@ -6,6 +6,7 @@ import (
     "net/http"
     "strings"
     "sync"
+    "os"
     "net/url"
     "net/http/httputil"
     "github.com/garyburd/redigo/redis"
@@ -13,6 +14,7 @@ import (
     "code.google.com/p/goprotobuf/proto"
     "github.umn.edu/umnapi/route.git/interfaces"
     "github.umn.edu/umnapi/route.git/logger"
+    "github.umn.edu/umnapi/route.git/util"
 )
 
 type Route struct {
@@ -22,10 +24,9 @@ type Route struct {
 }
 
 type Router struct {
-    mu          sync.RWMutex
+    mutex       sync.RWMutex
     Hosts       map[string]Host
     store       redis.Conn
-    logging     *logger.Logger
 }
 
 type Host struct {
@@ -36,135 +37,160 @@ type Host struct {
     handler http.Handler
 }
 
-func NewRouter(store redis.Conn, logging *logger.Logger) *Router {
+var logging *logger.Logger
+var cache redis.Conn
+
+func init() {
+    /* Create logger */
+    logging = logger.NewLogger("router", logger.Console)
+
+    /* Connect to cache */
+    var err error
+    cache, err = redis.Dial("tcp", util.GetenvDefault("REDIS_BIND", ":6379"))
+    if err != nil {
+        logging.Log("internal", "route.error", "failed to bind to redis", "[fg-red]")
+        os.Exit(1)
+    }
+}
+
+
+func NewRouter() *Router {
     return &Router{
-	Hosts:  make(map[string]Host),
-	store: store,
-	logging: logging,
+        Hosts:  make(map[string]Host),
     }
 }
 
 func (router *Router) Register(label string, domain string, path string, prefix string, handler http.Handler) {
-    // Key in a host by its label
+    /* Add host by label */
     router.Hosts[label] = Host{
-	Domain: domain,
-	Label: label,
-	Path: path,
-	Prefix: prefix,
-	handler: handler,
+        Domain: domain,
+        Label: label,
+        Path: path,
+        Prefix: prefix,
+        handler: handler,
     }
 
-    // Create zmq context
-    ctx, _ := zmq.NewContext()
-    defer ctx.Close()
+    /* Set up publisher */
+    context, err := zmq.NewContext()
+    if err != nil {
+        logging.Log("internal", "route.error", "failed to create ZMQ context", "[fg-red]")
+        return
+    }
 
-    // Create and open zmq socket
-    sock, _ := ctx.NewSocket(zmq.REQ)
-    sock.Connect("tcp://127.0.0.1:6667")
-    defer sock.Close()
+    defer context.Close()
 
-    store := router.store;
+    s, err := context.NewSocket(zmq.REQ)
+    if err != nil {
+        logging.Log("internal", "route.error", "failed to create ZMQ socket", "[fg-red]")
+        return
+    }
 
-    // store using the label as the key since that is what we use to build our urls.
-    redis_key := fmt.Sprintf("route:%s", label)
-    store.Do("HMSET", redis_key, "label", redis_key, "domain", domain, "path", path, "prefix", prefix)
+    defer s.Close()
 
-    // Create protobuf object
+    s.Connect(util.GetenvDefault("PUBLISH_BIND", "tcp://127.0.0.1:6667"))
+    logging.Log("internal", "route.start", "event publisher started", "[fg-blue]")
+
+    /* Store route in cache */
+    cache_key := fmt.Sprintf("route:%s", label)
+    cache.Do("HMSET", cache_key, "label", label, "domain", domain, "path", path, "prefix", prefix)
+
+    /* Broadcast route */
     message := &interfaces.Route {
-	Do: interfaces.DO_UPDATE.Enum(),
-	Id: proto.String("0"),
-	Label: proto.String(label),
-	Path: proto.String(path),
-	Prefix: proto.String(prefix),
-	Domain: proto.String(domain),
+        Do: interfaces.DO_UPDATE.Enum(),
+        Id: proto.String("0"),
+        Label: proto.String(label),
+        Path: proto.String(path),
+        Prefix: proto.String(prefix),
+        Domain: proto.String(domain),
     }
 
+    /* Marshal structure */
     data, err := proto.Marshal(message)
     if err != nil {
-    	router.logging.Log("internal", "router.register", "unable to marshal message", "[fg-red]")
+    	logging.Log("internal", "router.error", "unable to marshall message", "[fg-red]")
     	return
     }
 
-    sock.SendMultipart([][]byte{[]byte("route"), data}, 0)
-    sock.RecvMultipart(0)
+    /* Broadcast */
+    logging.Log("internal", "route.publish", "publishing route", "[fg-blue]")
+    s.SendMultipart([][]byte{[]byte("route"), data}, 0)
+    s.RecvMultipart(0)
 }
 
 func (router *Router) Lookup(path string) (host Host, err error) {
-    router.mu.RLock()
-    defer router.mu.RUnlock()
+    router.mutex.RLock()
+    defer router.mutex.RUnlock()
 
-    // Extract the prefix from the given path
+    /* Extract the prefix from the given path */
     split := strings.Split(path, "/")
-    if len(split) >= 2 {
-	prefix := split[1]
-
-	// Load routes from database
-	//route := Route{}
-	redis_key := fmt.Sprintf("route:%s", prefix)
-
-	// Create route handler
-	domain, _ := redis.String(router.store.Do("HGET", redis_key, "domain"))
-	label, _ := redis.String(router.store.Do("HGET", redis_key, "label"))
-	routeprefix, _ := redis.String(router.store.Do("HGET", redis_key, "prefix"))
-	path, _ := redis.String(router.store.Do("HGET", redis_key, "path"))
-
-	url, _ := url.Parse(path)
-
-        proxy := httputil.NewSingleHostReverseProxy(url)
-
-	router.Register(label, domain, path, routeprefix, proxy)
-
-	host = router.Hosts[prefix]
-	return host, nil
+    if len(split) < 2 {
+        err = errors.New("Route not found")
+        return Host{}, err
     }
 
-    err = errors.New("404 Not Found")
-    return Host{}, err
+    prefix := split[1]
+
+    /* Load route from cache */
+    cache_key := fmt.Sprintf("route:%s", prefix)
+
+    /* Create route handler */
+    domain, _ := redis.String(cache.Do("HGET", cache_key, "domain"))
+    label, _ := redis.String(cache.Do("HGET", cache_key, "label"))
+    routeprefix, _ := redis.String(cache.Do("HGET", cache_key, "prefix"))
+    path, _ = redis.String(cache.Do("HGET", cache_key, "path"))
+
+    /* Create reverse proxy */
+    url, _ := url.Parse(path)
+    proxy := httputil.NewSingleHostReverseProxy(url)
+
+    /* Register route */
+    router.Register(label, domain, path, routeprefix, proxy)
+
+    host = router.Hosts[prefix]
+    return host, nil
 }
 
 func (router *Router) ServeHTTP(w http.ResponseWriter, r *http.Request) {
-    // Verify request signature
+    /* Verify request signature */
     r.ParseForm()
-    f := r.Form
+    form := r.Form
 
-    // Get request variables
-    digest := f.Get("digest")
-    public_key := f.Get("key")
-    now := f.Get("now")
+    /* Get request values */
+    digest := form.Get("digest")
+    public_key := form.Get("key")
+    now := form.Get("now")
     path := r.URL.Path
     method := r.Method
 
-    // Get private key
+    /* Load private key from cache */
     var private_key string
-    redis_key := fmt.Sprintf("key:%s", public_key)
-    store := router.store
-    private_key, _ = redis.String(store.Do("get", redis_key))
-    /*  router.keyStore.QueryRow("SELECT private_key FROM keystore WHERE public_key=?", f.Get("key")).Scan(&private_key) */
+    cache_key := fmt.Sprintf("key:%s", public_key)
+    private_key, _ = redis.String(cache.Do("get", cache_key))
 
     valid := Authenticate(digest, public_key, private_key, now, path, method)
-    // authorized := Authorize()
-    if valid != true {
-	w.WriteHeader(http.StatusUnauthorized)
-	return
+
+    if !valid {
+        w.WriteHeader(http.StatusUnauthorized)
+        return
     }
 
-    // Fetch host by the given path
+    /* Fetch host by the given path */
     host, err := router.Lookup(r.URL.Path)
     if err != nil {
-	http.NotFound(w, r)
-	return
+        http.NotFound(w, r)
+        return
     }
 
-    // Build new path removing prefix
+    /* Build new path removing prefix */
     split := strings.Split(r.URL.Path, "/")
     r.URL.Path = "/" + strings.Join(split[2:], "/")
 
-    // Assign target host header
+    /* Assign target host header */
     r.Host = host.Domain
 
-    // Assign handler
+    /* Assign handler */
     handler := host.handler
 
-    // Serve request
+    /* Serve request */
     handler.ServeHTTP(w, r)
 }
