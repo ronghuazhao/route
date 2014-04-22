@@ -2,8 +2,8 @@ package main
 
 import (
 	"github.com/gorilla/mux"
-	"github.umn.edu/umnapi/route.git/json"
-	"github.umn.edu/umnapi/route.git/router"
+	"api.umn.edu/route/json"
+	"api.umn.edu/route/router"
 	"net/http"
 	"net/http/httputil"
 	"net/url"
