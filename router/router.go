@@ -17,6 +17,8 @@ import (
 	"sync"
 )
 
+const RETRY_MAX int = 1000
+
 type Route struct {
 	Name        string
 	Description string
@@ -84,6 +86,7 @@ func (router *Router) Register(label string, domain string, path string, prefix 
 		return
 	}
 
+	s.SetLinger(0)
 	defer s.Close()
 
 	s.Connect(util.GetenvDefault("PUBLISH_BIND", "tcp://127.0.0.1:6667"))
@@ -113,7 +116,21 @@ func (router *Router) Register(label string, domain string, path string, prefix 
 	/* Broadcast */
 	logging.Log("internal", "route.publish", "publishing route", "[fg-blue]")
 	s.SendMultipart([][]byte{[]byte("route"), data}, 0)
-	s.RecvMultipart(0)
+
+	found := 0
+	for retry := 0; retry < RETRY_MAX; retry++ {
+		_, err := s.RecvMultipart(zmq.NOBLOCK)
+		if err == nil {
+			found = 1
+		}
+	}
+
+	if found == 0 {
+		logging.Log("internal", "route.error", "failed to contact storage", "[fg-red]")
+		logging.Log("internal", "route.error", "operating without store", "[fg-red]")
+		s.Close()
+		return
+	}
 }
 
 func (router *Router) Lookup(path string) (host Host, err error) {
