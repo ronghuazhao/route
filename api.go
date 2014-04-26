@@ -1,13 +1,27 @@
 package main
 
 import (
+	"encoding/json"
 	"github.com/gorilla/mux"
-	"api.umn.edu/route/json"
 	"api.umn.edu/route/router"
 	"net/http"
 	"net/http/httputil"
 	"net/url"
 )
+
+func WriteJsonResponse(w http.ResponseWriter, j map[string]interface{}) http.ResponseWriter {
+	w.Header().Set("Content-Type", "application/json")
+
+	body, err := json.Marshal(j)
+
+	if err != nil {
+		logging.Log("internal", "route.error", "failed to marshal API response", "[fg-red]")
+	}
+
+	w.Write(body)
+
+	return w
+}
 
 func NewApi(prefix string, rt *router.Router) http.Handler {
 	internal := mux.NewRouter()
@@ -28,8 +42,11 @@ func NewApi(prefix string, rt *router.Router) http.Handler {
 			rt.Register(v.Get("label"), v.Get("domain"), v.Get("path"), v.Get("prefix"), proxy)
 		}
 
-		response := json.NewJsonResponse(w)
-		response.Write(json.Json{"objects": rt.Hosts})
+		body := map[string]interface{}{
+			"objects": rt.Hosts,
+		}
+
+		WriteJsonResponse(w, body)
 
 		return
 	}
@@ -42,8 +59,11 @@ func NewApi(prefix string, rt *router.Router) http.Handler {
 		blank := &router.Host{}
 
 		if route != *blank {
-			response := json.NewJsonResponse(w)
-			response.Write(json.Json{"objects": route})
+			body := map[string]interface{}{
+				"objects": route,
+			}
+
+			WriteJsonResponse(w, body)
 		} else {
 			w.WriteHeader(http.StatusNotFound)
 		}
