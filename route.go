@@ -2,20 +2,21 @@ package main
 
 import (
 	"bytes"
-	"code.google.com/p/gcfg"
-	"code.google.com/p/goprotobuf/proto"
 	"fmt"
-	zmq "github.com/alecthomas/gozmq"
-	"github.com/garyburd/redigo/redis"
-	"api.umn.edu/route/interfaces"
-	"api.umn.edu/route/logger"
-	"api.umn.edu/route/router"
-	"api.umn.edu/route/util"
 	"net/http"
 	"net/http/httputil"
 	"net/url"
 	"os"
 	"runtime"
+
+	"api.umn.edu/route/interfaces"
+	"api.umn.edu/route/logger"
+	"api.umn.edu/route/router"
+	"api.umn.edu/route/util"
+	"code.google.com/p/gcfg"
+	"code.google.com/p/goprotobuf/proto"
+	zmq "github.com/alecthomas/gozmq"
+	"github.com/garyburd/redigo/redis"
 )
 
 /* Host config file structure */
