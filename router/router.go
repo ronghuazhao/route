@@ -1,23 +1,25 @@
 package router
 
 import (
-	"code.google.com/p/goprotobuf/proto"
 	"errors"
 	"fmt"
-	zmq "github.com/alecthomas/gozmq"
-	"github.com/garyburd/redigo/redis"
-	"api.umn.edu/route/interfaces"
-	"api.umn.edu/route/logger"
-	"api.umn.edu/route/util"
 	"net/http"
 	"net/http/httputil"
 	"net/url"
 	"os"
 	"strings"
 	"sync"
+	"time"
+
+	"api.umn.edu/route/interfaces"
+	"api.umn.edu/route/logger"
+	"api.umn.edu/route/util"
+	"code.google.com/p/goprotobuf/proto"
+	zmq "github.com/alecthomas/gozmq"
+	"github.com/garyburd/redigo/redis"
 )
 
-const RETRY_MAX int = 1000
+const timeout string = "2s"
 
 type Route struct {
 	Name        string
@@ -86,7 +88,15 @@ func (router *Router) Register(label string, domain string, path string, prefix 
 		return
 	}
 
+	if err != nil {
+		logging.Log("internal", "route.error", "invalid socket timeout specified", "[fg-red]")
+		return
+	}
+
 	s.SetLinger(0)
+
+	rcv_timeout, err := time.ParseDuration(timeout)
+	s.SetRcvTimeout(rcv_timeout)
 	defer s.Close()
 
 	s.Connect(util.GetenvDefault("PUBLISH_BIND", "tcp://127.0.0.1:6667"))
@@ -114,23 +124,17 @@ func (router *Router) Register(label string, domain string, path string, prefix 
 	}
 
 	/* Broadcast */
-	logging.Log("internal", "route.publish", "publishing route", "[fg-blue]")
 	s.SendMultipart([][]byte{[]byte("route"), data}, 0)
 
-	found := 0
-	for retry := 0; retry < RETRY_MAX; retry++ {
-		_, err := s.RecvMultipart(zmq.NOBLOCK)
-		if err == nil {
-			found = 1
-		}
-	}
-
-	if found == 0 {
-		logging.Log("internal", "route.error", "failed to contact storage", "[fg-red]")
+	_, err = s.RecvMultipart(0)
+	if err != nil {
+		logging.Log("internal", "route.error", "storage connection timed out", "[fg-red]")
 		logging.Log("internal", "route.error", "operating without store", "[fg-red]")
 		s.Close()
 		return
 	}
+
+	logging.Log("internal", "route.publish", "route published", "[fg-blue]")
 }
 
 func (router *Router) Lookup(path string) (host Host, err error) {
