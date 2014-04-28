@@ -1,9 +1,14 @@
+// Copyright 2014 Regents of the University of Minnesota. All rights reserved.
+// The University of Minnesota is an equal opportunity educator and employer.
+// Use of this file is governed by a license found in the license.md file.
+
 package logger
 
 import (
 	"fmt"
-	"github.com/foize/go.sgr"
 	"sync"
+
+	"github.com/foize/go.sgr"
 )
 
 const (
@@ -11,8 +16,8 @@ const (
 )
 
 type Logger struct {
-	mutex    sync.RWMutex
-	handler  int
+	mutex   sync.RWMutex
+	handler int
 }
 
 func NewLogger(name string, handler int) *Logger {

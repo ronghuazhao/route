@@ -1,3 +1,7 @@
+// Copyright 2014 Regents of the University of Minnesota. All rights reserved.
+// The University of Minnesota is an equal opportunity educator and employer.
+// Use of this file is governed by a license found in the license.md file.
+
 package router
 
 import (

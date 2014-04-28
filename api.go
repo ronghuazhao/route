@@ -1,12 +1,17 @@
+// Copyright 2014 Regents of the University of Minnesota. All rights reserved.
+// The University of Minnesota is an equal opportunity educator and employer.
+// Use of this file is governed by a license found in the license.md file.
+
 package main
 
 import (
 	"encoding/json"
-	"github.com/gorilla/mux"
-	"api.umn.edu/route/router"
 	"net/http"
 	"net/http/httputil"
 	"net/url"
+
+	"api.umn.edu/route/router"
+	"github.com/gorilla/mux"
 )
 
 func WriteJsonResponse(w http.ResponseWriter, j map[string]interface{}) http.ResponseWriter {
