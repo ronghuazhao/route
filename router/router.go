@@ -48,11 +48,11 @@ type Host struct {
 	handler http.Handler
 }
 
-/* Global variables */
+// Global variables
 var logging *logger.Logger
 var local_cache *cache.Cache
 
-/* Constants */
+// Constants
 const timeout string = "2s"
 
 func init() {
@@ -158,7 +158,7 @@ func (router *Router) Register(label string, domain string, path string, prefix 
 	// Broadcast message
 	s.SendMultipart([][]byte{[]byte("route"), data}, 0)
 
-	// Block and receive acknowledgement
+	// Receive acknowledgement
 	_, err = s.RecvMultipart(0)
 
 	// Check if message sending failed

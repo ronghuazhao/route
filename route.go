@@ -21,14 +21,14 @@ import (
 	"code.google.com/p/gcfg"
 )
 
-/* Host config file struct to unmarshal into */
+// Host config file structure
 type Config struct {
 	Host map[string]*struct {
 		Label string
 	}
 }
 
-/* Global variables */
+// Global variables
 var logging *logger.Logger
 var routing *router.Router
 
