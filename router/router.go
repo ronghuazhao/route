@@ -235,14 +235,19 @@ func (router *Router) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 
 	/* Load private key from cache */
 	keypair, _ := local_cache.Get(fmt.Sprintf("key:%s", public_key))
-	fmt.Printf("%s\n", keypair)
-	private_key := keypair[1]
 
-	// Authenticate the request
-	valid := Authenticate(digest, public_key, private_key, now, path, method)
-	fmt.Println(valid)
-	fmt.Println(public_key)
-	fmt.Println(private_key)
+	var valid bool
+	if keypair != nil {
+		private_key := keypair[1]
+
+		// Authenticate the request
+		valid = Authenticate(digest, public_key, private_key, now, path, method)
+		fmt.Println(valid)
+		fmt.Println(public_key)
+		fmt.Println(private_key)
+	} else {
+		valid = false
+	}
 
 	// Abort if the message is not properly authenticated
 	if !valid {
