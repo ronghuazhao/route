@@ -19,9 +19,9 @@ import (
 	"time"
 
 	"api.umn.edu/route/cache"
+	"api.umn.edu/route/interfaces"
 	"api.umn.edu/route/logger"
 	"api.umn.edu/route/util"
-	"api.umn.edu/store/interfaces"
 	"code.google.com/p/goprotobuf/proto"
 	zmq "github.com/alecthomas/gozmq"
 )
