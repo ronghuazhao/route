@@ -13,6 +13,7 @@ import (
 	"net/http/httputil"
 	"net/url"
 	"runtime"
+
 	"api.umn.edu/route/events"
 	"api.umn.edu/route/logger"
 	"api.umn.edu/route/router"
@@ -30,9 +31,6 @@ type Config struct {
 /* Global variables */
 var logging *logger.Logger
 var routing *router.Router
-
-/* Constants */
-var topics = []string{"auth", "route"}
 
 func init() {
 	// Create logging instance
