@@ -1,22 +1,16 @@
 package main
 
 import (
-	"bytes"
-	"fmt"
 	"net/http"
 	"net/http/httputil"
 	"net/url"
-	"os"
 	"runtime"
 
-	"api.umn.edu/route/interfaces"
+	"api.umn.edu/route/events"
 	"api.umn.edu/route/logger"
 	"api.umn.edu/route/router"
 	"api.umn.edu/route/util"
 	"code.google.com/p/gcfg"
-	"code.google.com/p/goprotobuf/proto"
-	zmq "github.com/alecthomas/gozmq"
-	"github.com/garyburd/redigo/redis"
 )
 
 /* Host config file structure */
@@ -28,7 +22,6 @@ type Config struct {
 
 var logging *logger.Logger
 var routing *router.Router
-var cache redis.Conn
 
 var topics = []string{"auth", "route"}
 
@@ -38,14 +31,6 @@ func init() {
 
 	/* Create router */
 	routing = router.NewRouter()
-
-	/* Connect to cache */
-	var err error
-	cache, err = redis.Dial("tcp", util.GetenvDefault("REDIS_BIND", ":6379"))
-	if err != nil {
-		logging.Log("internal", "route.error", "failed to bind to redis", "[fg-red]")
-		os.Exit(1)
-	}
 }
 
 func main() {
@@ -74,7 +59,7 @@ func main() {
 	}
 
 	/* Listen for store events */
-	go eventListener(cache)
+	go events.Listen()
 	logging.Log("internal", "route.start", "event listener started", "[fg-blue]")
 
 	/* Start router */
@@ -86,61 +71,4 @@ func main() {
 	logging.Log("internal", "route.start", "core api started", "[fg-blue]")
 
 	<-make(chan int)
-}
-
-func eventListener(store redis.Conn) {
-	/* Set up event listener */
-	context, err := zmq.NewContext()
-	if err != nil {
-		logging.Log("internal", "route.error", "failed to create ZMQ context", "[fg-red]")
-		return
-	}
-
-	defer context.Close()
-
-	s, err := context.NewSocket(zmq.SUB)
-	if err != nil {
-		logging.Log("internal", "route.error", "failed to create ZMQ socket", "[fg-red]")
-		return
-	}
-
-	s.Connect(util.GetenvDefault("EVENT_BIND", "tcp://127.0.0.1:6666"))
-
-	defer s.Close()
-
-	/* Subscribe to event topics */
-	for _, topic := range topics {
-		s.SetSubscribe(topic)
-	}
-
-	/* Listen loop */
-	for {
-		message, _ := s.RecvMultipart(0)
-
-		/* Extract message parts */
-		topic := message[0]
-		body := message[1]
-
-		switch {
-		case bytes.Equal(topic, []byte(topics[0])):
-			/* Auth message */
-			data := &interfaces.Auth{}
-
-			/* Extract message into structure */
-			err := proto.Unmarshal(body, data)
-
-			if err != nil {
-				logging.Log("internal", "route.error", "failed demarshall message", "[fg-red]")
-				return
-			}
-
-			/* Store in appropriate collection based on topic */
-			public_key := data.GetPublicKey()
-			private_key := data.GetPrivateKey()
-			cache_key := fmt.Sprintf("key:%s", public_key)
-			cache.Do("set", cache_key, private_key)
-
-			logging.Log("internal", "route.event", "key added to cache", "[fg-green]")
-		}
-	}
 }

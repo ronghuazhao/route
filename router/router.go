@@ -11,12 +11,12 @@ import (
 	"sync"
 	"time"
 
+	"api.umn.edu/route/cache"
 	"api.umn.edu/route/interfaces"
 	"api.umn.edu/route/logger"
 	"api.umn.edu/route/util"
 	"code.google.com/p/goprotobuf/proto"
 	zmq "github.com/alecthomas/gozmq"
-	"github.com/garyburd/redigo/redis"
 )
 
 const timeout string = "2s"
@@ -30,7 +30,6 @@ type Route struct {
 type Router struct {
 	mutex sync.RWMutex
 	Hosts map[string]Host
-	store redis.Conn
 }
 
 type Host struct {
@@ -42,7 +41,7 @@ type Host struct {
 }
 
 var logging *logger.Logger
-var cache redis.Conn
+var local_cache *cache.Cache
 
 func init() {
 	/* Create logger */
@@ -50,7 +49,7 @@ func init() {
 
 	/* Connect to cache */
 	var err error
-	cache, err = redis.Dial("tcp", util.GetenvDefault("REDIS_BIND", ":6379"))
+	local_cache, err = cache.NewCache(cache.Redis)
 	if err != nil {
 		logging.Log("internal", "route.error", "failed to bind to redis", "[fg-red]")
 		os.Exit(1)
@@ -63,13 +62,13 @@ func NewRouter() *Router {
 	}
 }
 
-func (router *Router) Register(label string, domain string, path string, prefix string, handler http.Handler) {
+func (router *Router) Register(Label string, Domain string, Path string, Prefix string, handler http.Handler) {
 	/* Add host by label */
-	router.Hosts[label] = Host{
-		Domain:  domain,
-		Label:   label,
-		Path:    path,
-		Prefix:  prefix,
+	router.Hosts[Label] = Host{
+		Domain:  Domain,
+		Label:   Label,
+		Path:    Path,
+		Prefix:  Prefix,
 		handler: handler,
 	}
 
@@ -102,18 +101,24 @@ func (router *Router) Register(label string, domain string, path string, prefix 
 	s.Connect(util.GetenvDefault("PUBLISH_BIND", "tcp://127.0.0.1:6667"))
 	logging.Log("internal", "route.start", "event publisher started", "[fg-blue]")
 
-	/* Store route in cache */
-	cache_key := fmt.Sprintf("route:%s", label)
-	cache.Do("HMSET", cache_key, "label", label, "domain", domain, "path", path, "prefix", prefix)
+	// Store route in cache
+	route := map[string]string{
+		"Label":  Label,
+		"Domain": Domain,
+		"Path":   Path,
+		"Prefix": Prefix,
+	}
+
+	local_cache.Set(fmt.Sprintf("route:%s", Label), route)
 
 	/* Broadcast route */
 	message := &interfaces.Route{
 		Do:     interfaces.DO_UPDATE.Enum(),
 		Id:     proto.String("0"),
-		Label:  proto.String(label),
-		Path:   proto.String(path),
-		Prefix: proto.String(prefix),
-		Domain: proto.String(domain),
+		Label:  proto.String(Label),
+		Path:   proto.String(Path),
+		Prefix: proto.String(Prefix),
+		Domain: proto.String(Domain),
 	}
 
 	/* Marshal structure */
@@ -150,21 +155,30 @@ func (router *Router) Lookup(path string) (host Host, err error) {
 
 	prefix := split[1]
 
-	/* Load route from cache */
-	cache_key := fmt.Sprintf("route:%s", prefix)
+	// Load route from cache
+	var route struct {
+		Domain string
+		Label  string
+		Prefix string
+		Path   string
+	}
 
-	/* Create route handler */
-	domain, _ := redis.String(cache.Do("HGET", cache_key, "domain"))
-	label, _ := redis.String(cache.Do("HGET", cache_key, "label"))
-	routeprefix, _ := redis.String(cache.Do("HGET", cache_key, "prefix"))
-	path, _ = redis.String(cache.Do("HGET", cache_key, "path"))
+	_, err = local_cache.Get(fmt.Sprintf("route:%s", prefix))
+	if err != nil {
+		return
+	}
+
+	domain := route.Domain
+	label := route.Label
+	routeprefix := route.Prefix
+	routepath := route.Path
 
 	/* Create reverse proxy */
 	url, _ := url.Parse(path)
 	proxy := httputil.NewSingleHostReverseProxy(url)
 
 	/* Register route */
-	router.Register(label, domain, path, routeprefix, proxy)
+	router.Register(label, domain, routepath, routeprefix, proxy)
 
 	host = router.Hosts[prefix]
 	return host, nil
@@ -183,11 +197,14 @@ func (router *Router) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 	method := r.Method
 
 	/* Load private key from cache */
-	var private_key string
-	cache_key := fmt.Sprintf("key:%s", public_key)
-	private_key, _ = redis.String(cache.Do("get", cache_key))
+	keypair, _ := local_cache.Get(fmt.Sprintf("key:%s", public_key))
+	fmt.Printf("%s\n", keypair)
+	private_key := keypair[1]
 
 	valid := Authenticate(digest, public_key, private_key, now, path, method)
+	fmt.Println(valid)
+	fmt.Println(public_key)
+	fmt.Println(private_key)
 
 	if !valid {
 		w.WriteHeader(http.StatusUnauthorized)

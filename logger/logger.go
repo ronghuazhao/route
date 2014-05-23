@@ -2,8 +2,9 @@ package logger
 
 import (
 	"fmt"
-	"github.com/foize/go.sgr"
 	"sync"
+
+	"github.com/foize/go.sgr"
 )
 
 const (
@@ -11,8 +12,8 @@ const (
 )
 
 type Logger struct {
-	mutex    sync.RWMutex
-	handler  int
+	mutex   sync.RWMutex
+	handler int
 }
 
 func NewLogger(name string, handler int) *Logger {
@@ -21,7 +22,6 @@ func NewLogger(name string, handler int) *Logger {
 
 	if handler == Console {
 		logger.handler = Console
-		logger.Log("internal", fmt.Sprintf("%s.status", name), "using console output", "[fg-blue]")
 	} else {
 		panic("Invalid logging handler")
 	}
