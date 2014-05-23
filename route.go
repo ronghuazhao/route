@@ -12,10 +12,7 @@ import (
 	"net/http"
 	"net/http/httputil"
 	"net/url"
-	"os"
 	"runtime"
-
-	"api.umn.edu/route/cache"
 	"api.umn.edu/route/events"
 	"api.umn.edu/route/logger"
 	"api.umn.edu/route/router"
@@ -33,7 +30,6 @@ type Config struct {
 /* Global variables */
 var logging *logger.Logger
 var routing *router.Router
-var local_cache *cache.Cache
 
 /* Constants */
 var topics = []string{"auth", "route"}
@@ -44,14 +40,6 @@ func init() {
 
 	// Create routing instance
 	routing = router.NewRouter()
-
-	// Connect to cache
-	var err error
-	local_cache, err = cache.NewCache(cache.Redis)
-	if err != nil {
-		logging.Log("internal", "route.error", "failed to bind to redis", "[fg-red]")
-		os.Exit(1)
-	}
 }
 
 func main() {
