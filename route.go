@@ -10,8 +10,6 @@ package main
 
 import (
 	"net/http"
-	"net/http/httputil"
-	"net/url"
 	"runtime"
 
 	"api.umn.edu/route/events"
@@ -24,7 +22,11 @@ import (
 // Host config file structure
 type Config struct {
 	Host map[string]*struct {
-		Label string
+		Description string
+		Id          string
+		Domain      string
+		Name        string
+		Path        string
 	}
 }
 
@@ -53,15 +55,16 @@ func main() {
 
 	// Create route handlers from config
 	for host, conf := range hosts.Host {
-		url, _ := url.Parse(host)
-		domain := url.Host
-		label := conf.Label
-		prefix := "/" + label
-		path := url.String()
-		proxy := httputil.NewSingleHostReverseProxy(url)
+		route := &router.Route{
+			Description: "",
+			Id:          conf.Id,
+			Domain:      conf.Domain,
+			Name:        host,
+			Path:        conf.Path,
+		}
 
 		// Request registration with the router
-		routing.Register(label, domain, path, prefix, proxy)
+		routing.Register(*route)
 	}
 
 	// Listen for events from the central store

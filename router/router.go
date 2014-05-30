@@ -28,24 +28,22 @@ import (
 
 // Struct representing a route
 type Route struct {
-	Name        string
-	Description string
-	Endpoint    string
+	Description string `json:"description"`
+	Id          string `json:"id"`
+	Domain      string `json:"domain"`
+	Name        string `json:"name"`
+	Path        string `json:"path"`
+	handler     http.Handler
 }
+
+/* request
+Path    string `json:"path"`
+*/
 
 // Struct representing a router
 type Router struct {
-	mutex sync.RWMutex
-	Hosts map[string]Host
-}
-
-// Struct representing a host
-type Host struct {
-	Domain  string `json:"domain"`
-	Label   string `json:"label"`
-	Path    string `json:"path"`
-	Prefix  string `json:"prefix"`
-	handler http.Handler
+	mutex  sync.RWMutex
+	Routes map[string]Route
 }
 
 // Global variables
@@ -71,24 +69,34 @@ func init() {
 // NewRouter initializes a router instance.
 func NewRouter() *Router {
 	return &Router{
-		Hosts: make(map[string]Host),
+		Routes: make(map[string]Route),
 	}
 }
 
-// Register accepts parameters for a new host to route to.
-func (router *Router) Register(label string, domain string, path string, prefix string, handler http.Handler) {
+// Register accepts a new route to handle
+func (router *Router) Register(route Route) {
 	// Lock router to add a new host
 	router.mutex.RLock()
 	defer router.mutex.RUnlock()
 
-	// Add host keyed by label
-	router.Hosts[label] = Host{
-		Domain:  domain,
-		Label:   label,
-		Path:    path,
-		Prefix:  prefix,
-		handler: handler,
+	// Create reverse proxy
+	url, _ := url.Parse("http://" + route.Domain + route.Path)
+
+	route.handler = httputil.NewSingleHostReverseProxy(url)
+
+	// Add host keyed by ID
+	router.Routes[route.Id] = route
+
+	// Store route in cache
+	cache_route := map[string]string{
+		"description": route.Description,
+		"id":          route.Id,
+		"domain":      route.Domain,
+		"name":        route.Name,
+		"path":        route.Path,
 	}
+
+	local_cache.Set(fmt.Sprintf("route:%s", route.Id), cache_route)
 
 	// Set up publisher context
 	context, err := zmq.NewContext()
@@ -128,24 +136,14 @@ func (router *Router) Register(label string, domain string, path string, prefix 
 	s.Connect(util.GetenvDefault("PUBLISH_BIND", "tcp://127.0.0.1:6667"))
 	logging.Log("internal", "route.start", "event publisher started", "[fg-blue]")
 
-	// Store route in cache
-	route := map[string]string{
-		"Label":  label,
-		"Domain": domain,
-		"Path":   path,
-		"Prefix": prefix,
-	}
-
-	local_cache.Set(fmt.Sprintf("route:%s", label), route)
-
 	// Build a message to send to the store
 	message := &interfaces.Route{
-		Do:     interfaces.DO_UPDATE.Enum(),
-		Id:     proto.String("0"),
-		Label:  proto.String(label),
-		Path:   proto.String(path),
-		Prefix: proto.String(prefix),
-		Domain: proto.String(domain),
+		Do:          interfaces.DO_UPDATE.Enum(),
+		Description: proto.String(route.Description),
+		Id:          proto.String(route.Id),
+		Domain:      proto.String(route.Domain),
+		Name:        proto.String(route.Name),
+		Path:        proto.String(route.Path),
 	}
 
 	// Marshal message into protobuf
@@ -177,46 +175,21 @@ func (router *Router) Register(label string, domain string, path string, prefix 
 
 // Lookup retrieves a host from a request path and registers it as a HTTP reverse proxy with the router.
 // It then returns the host that was registered.
-func (router *Router) Lookup(path string) (host Host, err error) {
+func (router *Router) Route(request string) (host Route, err error) {
 	// Lock router to register and lookup host
 	router.mutex.RLock()
 	defer router.mutex.RUnlock()
 
 	// Extract the prefix from the given path
-	split := strings.Split(path, "/")
-	if len(split) < 2 {
-		err = errors.New("Route not found")
-		return Host{}, err
-	}
-	prefix := split[1]
-
-	// Load route from cache
-	var route struct {
-		Domain string
-		Label  string
-		Prefix string
-		Path   string
+	path := strings.Split(request, "/")
+	if len(path) > 1 {
+		id := path[1]
+		host := router.Routes[id]
+		return host, nil
 	}
 
-	_, err = local_cache.Get(fmt.Sprintf("route:%s", prefix))
-	if err != nil {
-		return
-	}
-
-	domain := route.Domain
-	label := route.Label
-	routeprefix := route.Prefix
-	routepath := route.Path
-
-	// Create reverse proxy
-	url, _ := url.Parse(path)
-	proxy := httputil.NewSingleHostReverseProxy(url)
-
-	/* Register route */
-	router.Register(label, domain, routepath, routeprefix, proxy)
-
-	host = router.Hosts[prefix]
-	return host, nil
+	err = errors.New("Route not found")
+	return Route{}, err
 }
 
 // ServeHTTP receives requests, authenticates them, and then reverse-proxies the request to the backend API.
@@ -237,14 +210,11 @@ func (router *Router) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 	keypair, _ := local_cache.Get(fmt.Sprintf("key:%s", public_key))
 
 	var valid bool
-	if keypair != nil {
+	if len(keypair) == 2 {
 		private_key := keypair[1]
 
 		// Authenticate the request
 		valid = Authenticate(digest, public_key, private_key, now, path, method)
-		fmt.Println(valid)
-		fmt.Println(public_key)
-		fmt.Println(private_key)
 	} else {
 		valid = false
 	}
@@ -256,7 +226,7 @@ func (router *Router) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 	}
 
 	// Fetch host by the given path
-	host, err := router.Lookup(r.URL.Path)
+	host, err := router.Route(r.URL.Path)
 	if err != nil {
 		http.NotFound(w, r)
 		return
@@ -266,12 +236,8 @@ func (router *Router) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 	split := strings.Split(r.URL.Path, "/")
 	r.URL.Path = "/" + strings.Join(split[2:], "/")
 
-	// Assign target host header
 	r.Host = host.Domain
 
-	// Assign handler
-	handler := host.handler
-
 	// Serve request
-	handler.ServeHTTP(w, r)
+	host.handler.ServeHTTP(w, r)
 }
