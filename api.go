@@ -7,8 +7,6 @@ package main
 import (
 	"encoding/json"
 	"net/http"
-	"net/http/httputil"
-	"net/url"
 
 	"api.umn.edu/route/router"
 	"github.com/gorilla/mux"
@@ -39,16 +37,14 @@ func NewApi(prefix string, rt *router.Router) http.Handler {
 				w.WriteHeader(http.StatusInternalServerError)
 			}
 
-			v := r.PostForm
+			// v := r.PostForm
 
-			url, _ := url.Parse(v.Get("path"))
-			proxy := httputil.NewSingleHostReverseProxy(url)
-
-			rt.Register(v.Get("label"), v.Get("domain"), v.Get("path"), v.Get("prefix"), proxy)
+			// url, _ := url.Parse(v.Get("path"))
+			// proxy := httputil.NewSingleHostReverseProxy(url)
 		}
 
 		body := map[string]interface{}{
-			"objects": rt.Hosts,
+			"objects": rt.Routes,
 		}
 
 		WriteJsonResponse(w, body)
@@ -57,21 +53,21 @@ func NewApi(prefix string, rt *router.Router) http.Handler {
 	}
 
 	RouteHandler := func(w http.ResponseWriter, r *http.Request) {
-		vars := mux.Vars(r)
-		label := vars["route"]
-
-		route := rt.Hosts[label]
-		blank := &router.Host{}
-
-		if route != *blank {
-			body := map[string]interface{}{
-				"objects": route,
-			}
-
-			WriteJsonResponse(w, body)
-		} else {
-			w.WriteHeader(http.StatusNotFound)
-		}
+		// vars := mux.Vars(r)
+		// label := vars["route"]
+		//
+		// // route := rt.Routes[Id]
+		// // blank := &router.Host{}
+		//
+		// if route != *blank {
+		// 	body := map[string]interface{}{
+		// 		"objects": route,
+		// 	}
+		//
+		// 	WriteJsonResponse(w, body)
+		// } else {
+		// 	w.WriteHeader(http.StatusNotFound)
+		// }
 
 		return
 	}
