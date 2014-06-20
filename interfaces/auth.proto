@@ -1,9 +1,6 @@
-import "global.proto";
-
 package interfaces;
 message Auth {
-    required DO do = 1;
-    required string email = 2;
-    required string public_key = 3;
-    required string private_key = 4;
+    optional string email = 2;
+    optional string public_key = 3;
+    optional string private_key = 4;
 }

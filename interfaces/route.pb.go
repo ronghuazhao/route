@@ -12,12 +12,11 @@ var _ = proto.Marshal
 var _ = math.Inf
 
 type Route struct {
-	Do               *DO     `protobuf:"varint,1,req,name=do,enum=interfaces.DO" json:"do,omitempty"`
-	Id               *string `protobuf:"bytes,2,req,name=id" json:"id,omitempty"`
-	Label            *string `protobuf:"bytes,3,req,name=label" json:"label,omitempty"`
-	Path             *string `protobuf:"bytes,4,req,name=path" json:"path,omitempty"`
-	Prefix           *string `protobuf:"bytes,5,req,name=prefix" json:"prefix,omitempty"`
-	Domain           *string `protobuf:"bytes,6,req,name=domain" json:"domain,omitempty"`
+	Id               *string `protobuf:"bytes,2,opt,name=id" json:"id,omitempty"`
+	Path             *string `protobuf:"bytes,3,opt,name=path" json:"path,omitempty"`
+	Domain           *string `protobuf:"bytes,4,opt,name=domain" json:"domain,omitempty"`
+	Description      *string `protobuf:"bytes,5,opt,name=description" json:"description,omitempty"`
+	Name             *string `protobuf:"bytes,6,opt,name=name" json:"name,omitempty"`
 	XXX_unrecognized []byte  `json:"-"`
 }
 
@@ -25,23 +24,9 @@ func (m *Route) Reset()         { *m = Route{} }
 func (m *Route) String() string { return proto.CompactTextString(m) }
 func (*Route) ProtoMessage()    {}
 
-func (m *Route) GetDo() DO {
-	if m != nil && m.Do != nil {
-		return *m.Do
-	}
-	return DO_UPDATE
-}
-
 func (m *Route) GetId() string {
 	if m != nil && m.Id != nil {
 		return *m.Id
-	}
-	return ""
-}
-
-func (m *Route) GetLabel() string {
-	if m != nil && m.Label != nil {
-		return *m.Label
 	}
 	return ""
 }
@@ -53,16 +38,23 @@ func (m *Route) GetPath() string {
 	return ""
 }
 
-func (m *Route) GetPrefix() string {
-	if m != nil && m.Prefix != nil {
-		return *m.Prefix
+func (m *Route) GetDomain() string {
+	if m != nil && m.Domain != nil {
+		return *m.Domain
 	}
 	return ""
 }
 
-func (m *Route) GetDomain() string {
-	if m != nil && m.Domain != nil {
-		return *m.Domain
+func (m *Route) GetDescription() string {
+	if m != nil && m.Description != nil {
+		return *m.Description
+	}
+	return ""
+}
+
+func (m *Route) GetName() string {
+	if m != nil && m.Name != nil {
+		return *m.Name
 	}
 	return ""
 }

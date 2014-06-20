@@ -1,11 +1,8 @@
-import "global.proto";
-
 package interfaces;
 message Route {
-    required DO do = 1;
-    required string id = 2;
-    required string label = 3;
-    required string path = 4;
-    required string prefix = 5;
-    required string domain = 6;
+    optional string id = 2;
+    optional string path = 3;
+    optional string domain = 4;
+    optional string description = 5;
+    optional string name = 6;
 }

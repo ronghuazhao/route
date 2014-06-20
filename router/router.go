@@ -138,7 +138,6 @@ func (router *Router) Register(route Route) {
 
 	// Build a message to send to the store
 	message := &interfaces.Route{
-		Do:          interfaces.DO_UPDATE.Enum(),
 		Description: proto.String(route.Description),
 		Id:          proto.String(route.Id),
 		Domain:      proto.String(route.Domain),
