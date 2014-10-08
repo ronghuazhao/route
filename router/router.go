@@ -56,17 +56,24 @@ func NewRouter(sub, req string) *Router {
 		panic(err)
 	}
 
+	// Topics to listen to events on
+	topics := []string{"auth"}
+
+	// Create lock for modifying the router
+	lock := &sync.RWMutex{}
+
 	return &Router{
 		Routes: make(map[string]Route),
-		mail:   mail,
+		Topics: topics,
 		cache:  cursor,
+		lock:   lock,
+		mail:   mail,
 	}
 }
 
 func (router *Router) Listen() {
 	// Start event listener
-	fmt.Println("starting listener")
-	router.mail.Listen([]string{"auth"}, router.handle)
+	router.mail.Listen(router.Topics, router.handle)
 }
 
 // Register accepts a new route to handle
@@ -79,8 +86,10 @@ func (router *Router) Register(route Route) {
 	url, _ := url.Parse("http://" + route.Domain + route.Path)
 	route.handler = httputil.NewSingleHostReverseProxy(url)
 
-	// Add host keyed by ID
+	// Lock router to add a new host
+	router.lock.Lock()
 	router.Routes[route.Id] = route
+	router.lock.Unlock()
 
 	// Store route in cache
 	cache_route := map[string]string{
@@ -105,115 +114,35 @@ func (router *Router) Register(route Route) {
 	// Marshal message into protobuf
 	data, err := proto.Marshal(message)
 	if err != nil {
-		panic(err)
+		return err
 	}
 
 	// Broadcast message
-	response := router.mail.Send(mailman.CreateAction, "route", data)
+	response := router.mail.Send(mailman.CreateAction, publishTopic, data)
 
 	// Check if message sending failed
 	if response != mailman.OkResponse {
-		return
+		return errors.New("Could not publish new route")
 	}
+
+	return nil
 }
 
-// Lookup retrieves a host from a request path and registers it as a HTTP reverse proxy with the router.
-// It then returns the host that was registered.
+// Route retrieves a host from a request path.
 func (router *Router) Route(request string) (host Route, err error) {
-	// Lock router to register and lookup host
-	router.mutex.RLock()
-	defer router.mutex.RUnlock()
 
 	// Extract the prefix from the given path
 	path := strings.Split(request, "/")
 	if len(path) > 1 {
 		id := path[1]
+
+		// Lock router to lookup host
+		router.lock.RLock()
 		host := router.Routes[id]
+		router.lock.RUnlock()
+
 		return host, nil
 	}
 
-	err = errors.New("Route not found")
-	return Route{}, err
-}
-
-// ServeHTTP receives requests, authenticates them, and then reverse-proxies the request to the backend API.
-// It then returns the resource to the client.
-func (router *Router) ServeHTTP(w http.ResponseWriter, r *http.Request) {
-	// Parse form values from request
-	r.ParseForm()
-	form := r.Form
-
-	// Get request values
-	digest := form.Get("digest")
-	public_key := form.Get("key")
-	now := form.Get("now")
-	path := r.URL.Path
-	method := r.Method
-
-	/* Load private key from cache */
-	keypair, _ := router.cache.Get(fmt.Sprintf("key:%s", public_key))
-
-	// TODO: If that fails, attempt to fetch the key from the central service
-
-	var valid bool
-	if len(keypair) == 2 {
-		private_key := keypair[1]
-
-		// Authenticate the request
-		valid = Authenticate(digest, public_key, private_key, now, path, method)
-	} else {
-		valid = false
-	}
-
-	// Abort if the message is not properly authenticated
-	if !valid {
-		w.WriteHeader(http.StatusUnauthorized)
-		return
-	}
-
-	// Fetch host by the given path
-	host, err := router.Route(r.URL.Path)
-	if err != nil {
-		http.NotFound(w, r)
-		return
-	}
-
-	// Build new path and remove prefix
-	split := strings.Split(r.URL.Path, "/")
-	r.URL.Path = "/" + strings.Join(split[2:], "/")
-
-	r.Host = host.Domain
-
-	// Serve request
-	host.handler.ServeHTTP(w, r)
-}
-
-// The handle function is the callback for the event listener and handles
-// incoming messages on the given topic.
-func (router *Router) handle(topic string, code int, payload []byte) {
-	fmt.Println("handling")
-	fmt.Println(topic)
-	switch {
-	case topic == "auth":
-		/* Auth message */
-		data := &interfaces.Auth{}
-
-		/* Extract message into structure */
-		err := proto.Unmarshal(payload, data)
-		if err != nil {
-			panic(err)
-		}
-
-		/* Store in appropriate collection based on topic */
-		public_key := data.GetPublicKey()
-		private_key := data.GetPrivateKey()
-		fmt.Println(public_key)
-		fmt.Println(private_key)
-
-		payload := map[string]string{
-			public_key: private_key,
-		}
-
-		router.cache.Set(fmt.Sprintf("key:%s", public_key), payload)
-	}
+	return Route{}, errors.New("Route not found")
 }
