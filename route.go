@@ -33,8 +33,17 @@ func main() {
 	// Use all available cores
 	runtime.GOMAXPROCS(runtime.NumCPU())
 
+	// Get socket bindings
+	subBind := util.GetenvDefault("EVENT_BIND", "tcp://127.0.0.1:6666")
+	reqBind := util.GetenvDefault("PUBLISH_BIND", "tcp://127.0.0.1:6667")
+	routeBind := util.GetenvDefault("ROUTER_BIND", "tcp://127.0.0.1:8080")
+	apiBind := util.GetenvDefault("COREAPI_BIND", "tcp://127.0.0.1:8081")
+
+	// Create a new router
+	rt := router.NewRouter(subBind, reqBind)
+
 	// Create core API handler
-	core := NewApi("/core/v1", routing)
+	api := NewApi("/core/v1", rt)
 
 	// Read in host file
 	var hosts Config
