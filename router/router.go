@@ -2,9 +2,7 @@
 // The University of Minnesota is an equal opportunity educator and employer.
 // Use of this file is governed by a license found in the license.md file.
 
-/*
-Package router defines an HTTP router that authenticates requests, performs the request, and returns the result to a client.
-*/
+// Package router defines an HTTP router that authenticates requests, performs the request, and returns the result to a client.
 package router
 
 import (
@@ -19,11 +17,10 @@ import (
 	"api.umn.edu/mailman"
 	"api.umn.edu/route/cache"
 	"api.umn.edu/route/interfaces"
-	"api.umn.edu/route/util"
 	"code.google.com/p/goprotobuf/proto"
 )
 
-// Struct representing a route
+// Types
 type Route struct {
 	Description string `json:"description"`
 	Id          string `json:"id"`
@@ -33,28 +30,20 @@ type Route struct {
 	handler     http.Handler
 }
 
-/* request
-Path    string `json:"path"`
-*/
-
-// Struct representing a router
 type Router struct {
 	Routes map[string]Route
-	mutex  sync.RWMutex
+	Topics []string
+	lock   *sync.RWMutex
 	mail   *mailman.Mailman
 	cache  *cache.Cache
 }
 
 // Constants
 const timeout string = "0.5s"
+const publishTopic string = "route"
 
-// NewRouter initializes a router instance.
-func NewRouter() *Router {
-	// Get socket binding settings
-	// TODO: These should be passed in as parameters
-	sub := util.GetenvDefault("EVENT_BIND", "tcp://127.0.0.1:6666")
-	req := util.GetenvDefault("PUBLISH_BIND", "tcp://127.0.0.1:6667")
-
+// NewRouter initializes a router instance
+func NewRouter(sub, req string) *Router {
 	// Connect to messaging
 	mail, err := mailman.NewMailman(sub, req, timeout)
 	if err != nil {
@@ -88,7 +77,6 @@ func (router *Router) Register(route Route) {
 
 	// Create reverse proxy
 	url, _ := url.Parse("http://" + route.Domain + route.Path)
-
 	route.handler = httputil.NewSingleHostReverseProxy(url)
 
 	// Add host keyed by ID
