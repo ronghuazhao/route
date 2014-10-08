@@ -9,10 +9,10 @@ It mandates authenticating every request and integrates with a keyserver to vali
 package main
 
 import (
+	"fmt"
 	"net/http"
 	"runtime"
 
-	"api.umn.edu/route/logger"
 	"api.umn.edu/route/router"
 	"api.umn.edu/route/util"
 	"code.google.com/p/gcfg"
@@ -27,18 +27,6 @@ type Config struct {
 		Name        string
 		Path        string
 	}
-}
-
-// Global variables
-var logging *logger.Logger
-var routing *router.Router
-
-func init() {
-	// Create logging instance
-	logging = logger.NewLogger("route", logger.Console)
-
-	// Create routing instance
-	routing = router.NewRouter()
 }
 
 func main() {
@@ -63,20 +51,20 @@ func main() {
 		}
 
 		// Request registration with the router
-		routing.Register(*route)
+		rt.Register(*route)
 	}
 
 	// Listen for events from the central store
-	go routing.Listen()
-	logging.Log("internal", "route.start", "event listener started", "[fg-blue]")
+	rt.Listen()
+	fmt.Println("Event listener started")
 
 	// Listen for external API requests
-	go http.ListenAndServe(util.GetenvDefault("ROUTER_BIND", ":8080"), routing)
-	logging.Log("internal", "route.start", "router started", "[fg-blue]")
+	go http.ListenAndServe(routeBind, rt)
+	fmt.Println("Router started")
 
 	// Listen for internal API requests
-	go http.ListenAndServe(util.GetenvDefault("COREAPI_BIND", ":8081"), core)
-	logging.Log("internal", "route.start", "core api started", "[fg-blue]")
+	go http.ListenAndServe(apiBind, api)
+	fmt.Println("Core API started")
 
 	<-make(chan int)
 }
