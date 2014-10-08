@@ -18,7 +18,7 @@ func WriteJsonResponse(w http.ResponseWriter, j map[string]interface{}) http.Res
 	body, err := json.Marshal(j)
 
 	if err != nil {
-		logging.Log("internal", "route.error", "failed to marshal API response", "[fg-red]")
+		// logging.Log("internal", "route.error", "failed to marshal API response", "[fg-red]")
 	}
 
 	w.Write(body)
