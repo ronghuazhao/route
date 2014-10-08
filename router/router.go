@@ -76,12 +76,8 @@ func (router *Router) Listen() {
 	router.mail.Listen(router.Topics, router.handle)
 }
 
-// Register accepts a new route to handle
-func (router *Router) Register(route Route) {
-	// Lock router to add a new host
-	router.mutex.RLock()
-	defer router.mutex.RUnlock()
-
+// Register accepts a new route to handle in the router
+func (router *Router) Register(route Route) error {
 	// Create reverse proxy
 	url, _ := url.Parse("http://" + route.Domain + route.Path)
 	route.handler = httputil.NewSingleHostReverseProxy(url)
