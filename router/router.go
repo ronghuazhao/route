@@ -98,7 +98,7 @@ func (router *Router) Register(route Route) error {
 
 	router.cache.Set(fmt.Sprintf("route:%s", route.Id), cachedRoute)
 
-	// Build a message to send to the store
+	// Build a protobuf message to send to the store
 	message := &interfaces.Route{
 		Description: proto.String(route.Description),
 		Id:          proto.String(route.Id),
