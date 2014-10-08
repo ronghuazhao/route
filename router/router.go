@@ -88,7 +88,7 @@ func (router *Router) Register(route Route) error {
 	router.lock.Unlock()
 
 	// Store route in cache
-	cache_route := map[string]string{
+	cachedRoute := map[string]string{
 		"description": route.Description,
 		"id":          route.Id,
 		"domain":      route.Domain,
@@ -96,7 +96,7 @@ func (router *Router) Register(route Route) error {
 		"path":        route.Path,
 	}
 
-	router.cache.Set(fmt.Sprintf("route:%s", route.Id), cache_route)
+	router.cache.Set(fmt.Sprintf("route:%s", route.Id), cachedRoute)
 
 	// Build a message to send to the store
 	message := &interfaces.Route{
