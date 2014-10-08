@@ -12,7 +12,6 @@ import (
 	"net/http"
 	"runtime"
 
-	"api.umn.edu/route/events"
 	"api.umn.edu/route/logger"
 	"api.umn.edu/route/router"
 	"api.umn.edu/route/util"
@@ -68,7 +67,7 @@ func main() {
 	}
 
 	// Listen for events from the central store
-	go events.Listen()
+	go routing.Listen()
 	logging.Log("internal", "route.start", "event listener started", "[fg-blue]")
 
 	// Listen for external API requests
