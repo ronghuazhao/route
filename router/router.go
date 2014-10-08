@@ -13,17 +13,14 @@ import (
 	"net/http"
 	"net/http/httputil"
 	"net/url"
-	"os"
 	"strings"
 	"sync"
-	"time"
 
+	"api.umn.edu/mailman"
 	"api.umn.edu/route/cache"
 	"api.umn.edu/route/interfaces"
-	"api.umn.edu/route/logger"
 	"api.umn.edu/route/util"
 	"code.google.com/p/goprotobuf/proto"
-	zmq "github.com/alecthomas/gozmq"
 )
 
 // Struct representing a route
@@ -42,35 +39,45 @@ Path    string `json:"path"`
 
 // Struct representing a router
 type Router struct {
-	mutex  sync.RWMutex
 	Routes map[string]Route
+	mutex  sync.RWMutex
+	mail   *mailman.Mailman
+	cache  *cache.Cache
 }
-
-// Global variables
-var logging *logger.Logger
-var local_cache *cache.Cache
 
 // Constants
-const timeout string = "2s"
-
-func init() {
-	// Create logging instance
-	logging = logger.NewLogger("router", logger.Console)
-
-	// Connect to cache
-	var err error
-	local_cache, err = cache.NewCache(cache.Redis)
-	if err != nil {
-		logging.Log("internal", "route.error", "failed to bind to redis", "[fg-red]")
-		os.Exit(1)
-	}
-}
+const timeout string = "0.5s"
 
 // NewRouter initializes a router instance.
 func NewRouter() *Router {
+	// Get socket binding settings
+	// TODO: These should be passed in as parameters
+	sub := util.GetenvDefault("EVENT_BIND", "tcp://127.0.0.1:6666")
+	req := util.GetenvDefault("PUBLISH_BIND", "tcp://127.0.0.1:6667")
+
+	// Connect to messaging
+	mail, err := mailman.NewMailman(sub, req, timeout)
+	if err != nil {
+		panic(err)
+	}
+
+	// Connect to cache
+	cursor, err := cache.NewCache(cache.Redis)
+	if err != nil {
+		panic(err)
+	}
+
 	return &Router{
 		Routes: make(map[string]Route),
+		mail:   mail,
+		cache:  cursor,
 	}
+}
+
+func (router *Router) Listen() {
+	// Start event listener
+	fmt.Println("starting listener")
+	router.mail.Listen([]string{"auth"}, router.handle)
 }
 
 // Register accepts a new route to handle
@@ -96,45 +103,7 @@ func (router *Router) Register(route Route) {
 		"path":        route.Path,
 	}
 
-	local_cache.Set(fmt.Sprintf("route:%s", route.Id), cache_route)
-
-	// Set up publisher context
-	context, err := zmq.NewContext()
-	if err != nil {
-		logging.Log("internal", "route.error", "failed to create ZMQ context", "[fg-red]")
-		return
-	}
-
-	// Automatically close context when finished
-	defer context.Close()
-
-	// Set up socket
-	s, err := context.NewSocket(zmq.REQ)
-	if err != nil {
-		logging.Log("internal", "route.error", "failed to create ZMQ socket", "[fg-red]")
-		return
-	}
-
-	// If we close the socket, don't wait for any existing requests
-	s.SetLinger(0)
-
-	// Parse a timeout value
-	rcv_timeout, err := time.ParseDuration(timeout)
-	if err != nil {
-		logging.Log("internal", "route.error", "invalid timeout specified", "[fg-red]")
-		return
-	}
-
-	// Set the timeout for receiving messages
-	// Note that this must be done before connecting to an address
-	s.SetRcvTimeout(rcv_timeout)
-
-	// Automatically close socket when finished
-	defer s.Close()
-
-	// Connect to the publisher
-	s.Connect(util.GetenvDefault("PUBLISH_BIND", "tcp://127.0.0.1:6667"))
-	logging.Log("internal", "route.start", "event publisher started", "[fg-blue]")
+	router.cache.Set(fmt.Sprintf("route:%s", route.Id), cache_route)
 
 	// Build a message to send to the store
 	message := &interfaces.Route{
@@ -148,28 +117,16 @@ func (router *Router) Register(route Route) {
 	// Marshal message into protobuf
 	data, err := proto.Marshal(message)
 	if err != nil {
-		logging.Log("internal", "router.error", "unable to marshal message", "[fg-red]")
-		return
+		panic(err)
 	}
 
 	// Broadcast message
-	s.SendMultipart([][]byte{[]byte("route"), data}, 0)
-
-	// Receive acknowledgement
-	_, err = s.RecvMultipart(0)
+	response := router.mail.Send(mailman.CreateAction, "route", data)
 
 	// Check if message sending failed
-	if err != nil {
-		logging.Log("internal", "route.error", "storage connection timed out", "[fg-red]")
-		logging.Log("internal", "route.error", "operating without store", "[fg-red]")
-
-		// Clean up after failure
-		s.Close()
-		context.Close()
+	if response != mailman.OkResponse {
 		return
 	}
-
-	logging.Log("internal", "route.publish", "route published", "[fg-blue]")
 }
 
 // Lookup retrieves a host from a request path and registers it as a HTTP reverse proxy with the router.
@@ -206,7 +163,9 @@ func (router *Router) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 	method := r.Method
 
 	/* Load private key from cache */
-	keypair, _ := local_cache.Get(fmt.Sprintf("key:%s", public_key))
+	keypair, _ := router.cache.Get(fmt.Sprintf("key:%s", public_key))
+
+	// TODO: If that fails, attempt to fetch the key from the central service
 
 	var valid bool
 	if len(keypair) == 2 {
@@ -239,4 +198,34 @@ func (router *Router) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 
 	// Serve request
 	host.handler.ServeHTTP(w, r)
+}
+
+// The handle function is the callback for the event listener and handles
+// incoming messages on the given topic.
+func (router *Router) handle(topic string, code int, payload []byte) {
+	fmt.Println("handling")
+	fmt.Println(topic)
+	switch {
+	case topic == "auth":
+		/* Auth message */
+		data := &interfaces.Auth{}
+
+		/* Extract message into structure */
+		err := proto.Unmarshal(payload, data)
+		if err != nil {
+			panic(err)
+		}
+
+		/* Store in appropriate collection based on topic */
+		public_key := data.GetPublicKey()
+		private_key := data.GetPrivateKey()
+		fmt.Println(public_key)
+		fmt.Println(private_key)
+
+		payload := map[string]string{
+			public_key: private_key,
+		}
+
+		router.cache.Set(fmt.Sprintf("key:%s", public_key), payload)
+	}
 }
