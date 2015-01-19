@@ -1,1 +1,1 @@
-TODO: Add license.
+© Regents of the University of Minnesota. All rights reserved.
